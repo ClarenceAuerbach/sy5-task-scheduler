@@ -1,2 +1,2 @@
-- RIALLAND Louis - 22309585 - RIALLAND Louis
+- RIALLAND Louis - 22309585 - Louis Rialland
 - AUERBACH Clarence - 22306986 - AUERBACH clarence
