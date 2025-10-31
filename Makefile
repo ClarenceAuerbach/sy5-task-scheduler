@@ -1,11 +1,15 @@
-CC      ?= gcc
-CFLAGS  ?= -g -Wall -std=c17 -D_DEFAULT_SOURCE
+.PHONY: erraid tadmor
+
+CC      := gcc
+CFLAGS  := -g -Wall -std=c17 -D_DEFAULT_SOURCE
 
 all : erraid tadmor
 
-erraid : erraid.c 
+erraid : src/erraid.c 
+	$(CC) $(CFLAGS) src/erraid.c -o bin/erraid
 
-tadmor  : tadmor.c 
+tadmor : src/tadmor.c 
+	$(CC) $(CFLAGS) src/tadmor.c -o bin/tadmor
 
 distclean:
-	rm -f erraid tadmor *.o
+	rm -f bin/*
