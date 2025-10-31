@@ -2,7 +2,7 @@
 
 int main()
 {
-    printf("Deamon process");
+    printf("Deamon process \n");
 
     return 0;
 }
