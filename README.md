@@ -23,7 +23,7 @@ make distclean
 ```
 
 ## Usage
-Tadmor **will** provides the following options:
+Tadmor **will** provide the following options:
 
 ---
 
