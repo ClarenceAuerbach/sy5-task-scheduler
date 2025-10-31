@@ -5,10 +5,13 @@ CFLAGS  := -g -Wall -std=c17 -D_DEFAULT_SOURCE
 
 all : erraid tadmor
 
-erraid : src/erraid.c 
+bin:
+	mkdir -p bin
+
+erraid : src/erraid.c | bin
 	$(CC) $(CFLAGS) src/erraid.c -o bin/erraid
 
-tadmor : src/tadmor.c 
+tadmor : src/tadmor.c | bin
 	$(CC) $(CFLAGS) src/tadmor.c -o bin/tadmor
 
 distclean:
