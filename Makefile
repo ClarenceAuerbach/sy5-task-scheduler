@@ -5,14 +5,14 @@ CFLAGS  := -g -Wall -std=c17 -D_DEFAULT_SOURCE
 
 all : erraid tadmor
 
-bin:
-	mkdir -p bin
+src/bin:
+	mkdir -p src/bin
 
-erraid : src/erraid.c | bin
-	$(CC) $(CFLAGS) src/erraid.c -o bin/erraid
+erraid : src/main/erraid.c | src/bin
+	$(CC) $(CFLAGS) src/main/erraid.c -o src/bin/erraid
 
-tadmor : src/tadmor.c | bin
-	$(CC) $(CFLAGS) src/tadmor.c -o bin/tadmor
+tadmor : src/main/tadmor.c | src/bin
+	$(CC) $(CFLAGS) src/main/tadmor.c -o src/bin/tadmor
 
 distclean:
-	rm -f bin/*
+	rm -f src/bin/*
