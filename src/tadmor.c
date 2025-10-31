@@ -2,7 +2,7 @@
 
 int main(int argc, char *argv[])
 {
-    printf("Client request ");
+    printf("Client request \n");
 
     return 0;
 }
