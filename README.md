@@ -13,11 +13,15 @@ Clone the repository:
 git clone https://moule.informatique.univ-paris-diderot.fr/rialland/sy5-task-scheduler.git
 ```
 If you don’t already have it, install [GCC](https://gcc.gnu.org/) and then compile the project:
-`make`
+```bash
+make
+```
 
 To remove the executables:
-`make distclean`
- 
+```bash
+make distclean
+```
+
 ## Usage
 
 TODO — To be completed with usage examples and configuration instructions.
