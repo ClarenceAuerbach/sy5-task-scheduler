@@ -23,8 +23,81 @@ make distclean
 ```
 
 ## Usage
+Tadmor **will** provides the following options:
 
-TODO — To be completed with usage examples and configuration instructions.
+---
+
+### Task creation/deletion
+
+```
+-c [-m MINUTES] [-H HOURS] [-d DAYSOFWEEK] CMD [ARG_1] ... [ARG_N]
+```
+
+: create a simple task
+
+```
+-s [-m MINUTES] [-H HOURS] [-d DAYSOFWEEK] TASKID_1 ... TASKID_N
+```
+
+: sequential combination of the tasks identified by `TASKID_1` to `TASKID_N`;
+the command to execute is `(CMD_1 ; ... ; CMD_N)`
+
+```
+-n
+```
+
+: used in combination with the previous options, defines a task **without an execution schedule** (i.e., it will never be executed on its own, and is intended to be combined with other tasks to form a complex command)
+
+```
+-r TASKID
+```
+
+: delete the task identified by `TASKID`
+
+---
+
+### Server data consultation
+
+```
+-l
+```
+
+: list all tasks
+
+```
+-x TASKID
+```
+
+: display the dated list of return values from the executions of the task identified by `TASKID`
+
+```
+-o TASKID
+```
+
+: show the standard output of the last completed execution of the task identified by `TASKID`
+
+```
+-e TASKID
+```
+
+: show the standard error output of the last completed execution of the task identified by `TASKID`
+
+---
+
+### Miscellaneous
+
+```
+-p PIPES_DIR
+```
+
+: specify the directory containing the communication pipes with the daemon
+(default: `/tmp/$USER/erraid/pipes`)
+
+```
+-q
+```
+
+: stop the daemon
 
 ## Roadmap
 jalon-1 :
