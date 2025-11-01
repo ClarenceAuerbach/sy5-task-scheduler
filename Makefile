@@ -1,4 +1,4 @@
-.PHONY: erraid tadmor
+.PHONY: erraid tadmor run kill distclean
 
 CC      := gcc
 CFLAGS  := -g -Wall -std=c17 -D_DEFAULT_SOURCE
@@ -19,3 +19,7 @@ distclean :
 
 run : 
 	mkdir -p /tmp/$(USER)/erraid/tasks && ./src/bin/erraid $(USER)
+
+kill : 
+	kill $$(cat /tmp/$(USER)/erraid/tasks/erraid_pid.pid) 2>/dev/null || true
+	rm -f /tmp/$(USER)/erraid/tasks/erraid_pid.pid
