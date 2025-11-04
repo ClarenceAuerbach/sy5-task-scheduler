@@ -1,8 +1,7 @@
-#define _DEFAULT_SOURCE
+// #define _DEFAULT_SOURCE
 
 #include <stdint.h>
 #include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -11,7 +10,7 @@
 #include <limits.h>
 
 
-typedef struct string_t {
+typedef struct {
     uint32_t length;
     uint8_t *data;
 } string_t;
@@ -21,7 +20,7 @@ typedef struct string_t {
  * and the first (Monday) and fifth (Friday) days are marked
  * then it'll run Monday 8:00, Monday 16:00, Friday 8:00, Friday 16:00
  */
-typedef struct timing_t {
+typedef struct {
     uint64_t minutes;
     uint32_t hours;
     uint8_t daysofweek;
@@ -30,9 +29,9 @@ typedef struct timing_t {
 /* argv[0] contains the name of the command to be called
  * it must exist and be nonempty
  */
-typedef struct arguments_t {
+typedef struct {
     int argc;
-    struct string_t *argv;
+    string_t *argv;
 } arguments_t;
 
 /* type:
@@ -46,7 +45,7 @@ typedef struct arguments_t {
 */
 typedef struct command_t {
     uint16_t type;
-    struct arguments_t args;
+    arguments_t args;
     uint32_t nbcmds;
     struct command_t *cmd;
 } command_t;
@@ -54,78 +53,126 @@ typedef struct command_t {
 /* Represents an entire task
 * Only represents simple or sequential commands for now
 */
-typedef struct task_t {
+typedef struct {
     int id;
-    struct command_t *command;
-    struct timing_t timings;
+    command_t *command;
+    timing_t timings;
 } task_t;
 
-// TODO (not necessarily final prototype)
-int extract_task( char *dir_path, int id, task_t *dest_task){
-    int count = 0;
+
+int extract_cmd(command_t * dest_cmd, char * cmd_path) {
+    int count;
     
-    /* First iteration */
-    if ( id >= 0) snprintf(dir_path, strlen(dir_path)+10, "%s%d", "/", id);
-        
-    DIR *dir = opendir(dir_path);
+    DIR *dir = opendir(cmd_path);
+
     if (dir == NULL) {
-        perror("cannot open dir");
-        goto error;
+        perror("cannot open dir : cmd");
+        return -1;
     }
     struct dirent *entry;
 
     while ((entry = readdir(dir))) {
         char *name = entry->d_name;
+        snprintf(cmd_path, strlen(cmd_path)+strlen(name) +1, "%s%s%s", cmd_path, "/", name);
+
+        if (!strcmp(name,"argv")) {
+            int fd = open(cmd_path, O_RDONLY);
+            if (fd < 0) {
+                closedir(dir);
+                return -1;
+            }
+            int read_val = read(fd, &(dest_cmd->args), sizeof(arguments_t));
+            if (read_val < sizeof(arguments_t)) {
+                closedir(dir);
+                return -1;
+            }
+        }
+
+        if (!strcmp(name,"type")) {
+            int fd = open(cmd_path, O_RDONLY);
+            if (fd < 0) {
+                closedir(dir);
+                return -1;
+            }
+            int read_val = read(fd, &(dest_cmd->type), sizeof(uint16_t));
+            if (read_val < sizeof(uint16_t)) {
+                closedir(dir);
+                return -1;
+            }
+        }
+        struct stat st ;
+        lstat(cmd_path, &st);
+        if (st.st_mode == S_IFDIR) {
+            char * dir_path_tmp ; 
+            strcpy(dir_path_tmp, cmd_path);
+            
+            extract_cmd((dest_cmd->cmd) + count , cmd_path);
+            
+            strcpy(cmd_path, dir_path_tmp);
+
+            count ++;
+        }
+        int dir_path_len = strlen(cmd_path); /* possibly you've saved the length previously */
+        cmd_path[dir_path_len -(strlen(name) + 1) ] = 0;
+    }
+    dest_cmd->nbcmds = (uint32_t) count;
+    return 0;
+}
+
+int extract_task(task_t *dest_task, char *dir_path, int id){
+    /* First iteration */
+
+    snprintf(dir_path, strlen(dir_path)+10, "%s%d", "/", id);
+        
+    DIR *dir = opendir(dir_path);
+    if (dir == NULL) {
+        perror("cannot open dir");
+        return -1;
+    }
+    struct dirent *entry;
+
+    while ((entry = readdir(dir))) {
+        char *name = entry->d_name;
+        snprintf(dir_path, strlen(dir_path)+strlen(name) +1, "%s%s%s", dir_path, "/", name);
 
         if (!strcmp(name, ".") || !strcmp(name, "..")) {
             continue;
         }
-        if (!strcmp(name,"stderr")) {
-            //TODO
-            count++;
-        }
-        if (!strcmp(name,"stdout")) {
-            //TODO
-            count++;
-        }
-        if (!strcmp(name,"times-exitcodes")) {
-            //TODO
-            count++;
-        }
-        if (!strcmp(name,"timing")) {
-            //TODO
-            count++;
-        }
-        if (!strcmp(name,"argv")) {
-            //TODO
-            count++;
-        }
-        if (!strcmp(name,"type")) {
-            //TODO
-            count++;
-        }
-        
-        if (entry->d_type == DT_DIR) {
 
-            snprintf(dir_path, strlen(dir_path)+strlen(name) +1, "%s%s", "/", name);
-            int res = extract_task(dir_path, -1, dest_task);
-            if (res == -1) {
-                goto error;
-            } else {
-                count += res;
+        if (!strcmp(name,"timing")) {
+            int fd = open(dir_path, O_RDONLY);
+            if (fd < 0) {
+                closedir(dir);
+                return -1;
             }
+            int read_val = read(fd, &(dest_task->timings), sizeof(timing_t));
+            if (read_val < sizeof(timing_t)) {
+                closedir(dir);
+                return -1;
+            }
+        }
+
+        struct stat st ;
+        lstat(dir_path, &st);
+        if (st.st_mode == S_IFDIR) {
+            char * dir_path_tmp ; 
+            strcpy(dir_path_tmp, dir_path);
+            
+            extract_cmd(dest_task->command, dir_path);
+            
+            strcpy(dir_path, dir_path_tmp);
         }
         int dir_path_len = strlen(dir_path); /* possibly you've saved the length previously */
         dir_path[dir_path_len -(strlen(name) + 1) ] = 0;
-    }
-    closedir(dir);
-    return count;
 
-    error:
-        perror("process_dir"); 
-        if (dir) closedir(dir);
-        return -1;
+    }
+
+    closedir(dir);
+    return 0;
 }
+
+
+
 
 // TODO
 // int extract_all(task_t *task[], char *dir_path);

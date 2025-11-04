@@ -25,9 +25,8 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 $(TARGET): $(OBJS) | $(BIN_DIR)
 	$(CC) $(OBJS) -o $@
 
-clean:
+distclean:
 	rm -rf $(OBJ_DIR) $(BIN_DIR)
-
 # Won't be permanent, removed once we have tadmor
 run : 
 	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid $(USER)
