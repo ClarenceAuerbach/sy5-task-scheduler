@@ -7,6 +7,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include "task.h"
 
 char RUN_DIRECTORY[4096] ;
 

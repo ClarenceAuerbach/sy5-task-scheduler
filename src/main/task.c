@@ -59,7 +59,7 @@ typedef struct {
 
 
 int extract_cmd(command_t * dest_cmd, char * cmd_path) {
-    int count;
+    
     
     DIR *dir = opendir(cmd_path);
 
@@ -68,12 +68,12 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
         return -1;
     }
     struct dirent *entry;
-
+    int count;
     while ((entry = readdir(dir))) {
         char *name = entry->d_name;
         char tmp[ strlen(cmd_path)];
         strcpy(tmp, cmd_path);
-        snprintf(cmd_path, strlen(cmd_path)+strlen(name) +1, "%s%s%s", tmp, "/", name);
+        snprintf(cmd_path, strlen(cmd_path)+strlen(name) +1, "%s/%s", tmp, name);
 
         if (!strcmp(name,"argv")) {
             int fd = open(cmd_path, O_RDONLY);
@@ -121,10 +121,7 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
     return 0;
 }
 
-int extract_task(task_t *dest_task, char *dir_path, int id){
-    /* First iteration */
-
-    snprintf(dir_path, strlen(dir_path)+10, "%s%d", "/", id);
+int extract_task(task_t *dest_task, char *dir_path){
         
     DIR *dir = opendir(dir_path);
     if (dir == NULL) {
@@ -137,7 +134,7 @@ int extract_task(task_t *dest_task, char *dir_path, int id){
         char *name = entry->d_name;
         char tmp[ strlen(dir_path)];
         strcpy(tmp, dir_path);
-        snprintf(dir_path, strlen(dir_path)+strlen(name) +1, "%s%s%s", tmp, "/", name);
+        snprintf(dir_path, strlen(dir_path)+strlen(name) +1, "%s/%s", tmp, name);
 
         if (!strcmp(name, ".") || !strcmp(name, "..")) {
             continue;
@@ -176,8 +173,22 @@ int extract_task(task_t *dest_task, char *dir_path, int id){
     return 0;
 }
 
-
-
-
-// TODO
-// int extract_all(task_t *task[], char *dir_path);
+int extract_all(task_t *task[], char *dir_path){
+    int ret = 0;
+    DIR *dir = opendir(dir_path);
+    if (dir == NULL) {
+        perror("cannot open tasks");
+        return -1;
+    }
+    struct dirent *entry;
+    int i = 0;
+    
+    while ((entry = readdir(dir))) {
+        char tmp[ strlen(dir_path)];
+        strcpy(tmp, dir_path);
+        snprintf(dir_path, strlen(dir_path)+strlen(entry->d_name) +1, "%s/%s", tmp, entry->d_name);
+        ret += extract_task( task[i] , dir_path);
+        i++;
+    }
+    return ret;
+}
