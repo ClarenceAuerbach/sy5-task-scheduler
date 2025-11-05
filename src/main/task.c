@@ -1,5 +1,3 @@
-// #define _DEFAULT_SOURCE
-
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
@@ -73,7 +71,9 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
 
     while ((entry = readdir(dir))) {
         char *name = entry->d_name;
-        snprintf(cmd_path, strlen(cmd_path)+strlen(name) +1, "%s%s%s", cmd_path, "/", name);
+        char tmp[ strlen(cmd_path)];
+        strcpy(tmp, cmd_path);
+        snprintf(cmd_path, strlen(cmd_path)+strlen(name) +1, "%s%s%s", tmp, "/", name);
 
         if (!strcmp(name,"argv")) {
             int fd = open(cmd_path, O_RDONLY);
@@ -82,10 +82,11 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
                 return -1;
             }
             int read_val = read(fd, &(dest_cmd->args), sizeof(arguments_t));
-            if (read_val < sizeof(arguments_t)) {
+            if (read_val < (int) sizeof(arguments_t)) {
                 closedir(dir);
                 return -1;
             }
+            close(fd);
         }
 
         if (!strcmp(name,"type")) {
@@ -95,15 +96,16 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
                 return -1;
             }
             int read_val = read(fd, &(dest_cmd->type), sizeof(uint16_t));
-            if (read_val < sizeof(uint16_t)) {
+            if (read_val < (int) sizeof(uint16_t)) {
                 closedir(dir);
                 return -1;
             }
+            close(fd);
         }
         struct stat st ;
-        lstat(cmd_path, &st);
-        if (st.st_mode == S_IFDIR) {
-            char * dir_path_tmp ; 
+        stat(cmd_path, &st);
+        if ( S_ISDIR(st.st_mode) ) {
+            char dir_path_tmp[strlen(cmd_path)] ; 
             strcpy(dir_path_tmp, cmd_path);
             
             extract_cmd((dest_cmd->cmd) + count , cmd_path);
@@ -130,10 +132,12 @@ int extract_task(task_t *dest_task, char *dir_path, int id){
         return -1;
     }
     struct dirent *entry;
-
+    
     while ((entry = readdir(dir))) {
         char *name = entry->d_name;
-        snprintf(dir_path, strlen(dir_path)+strlen(name) +1, "%s%s%s", dir_path, "/", name);
+        char tmp[ strlen(dir_path)];
+        strcpy(tmp, dir_path);
+        snprintf(dir_path, strlen(dir_path)+strlen(name) +1, "%s%s%s", tmp, "/", name);
 
         if (!strcmp(name, ".") || !strcmp(name, "..")) {
             continue;
@@ -146,16 +150,17 @@ int extract_task(task_t *dest_task, char *dir_path, int id){
                 return -1;
             }
             int read_val = read(fd, &(dest_task->timings), sizeof(timing_t));
-            if (read_val < sizeof(timing_t)) {
+            if (read_val < (int) sizeof(timing_t)) {
                 closedir(dir);
                 return -1;
             }
+            close(fd);
         }
 
         struct stat st ;
-        lstat(dir_path, &st);
-        if (st.st_mode == S_IFDIR) {
-            char * dir_path_tmp ; 
+        stat(dir_path, &st);
+        if ( S_ISDIR(st.st_mode) ) {
+            char dir_path_tmp[strlen(dir_path)] ; 
             strcpy(dir_path_tmp, dir_path);
             
             extract_cmd(dest_task->command, dir_path);
