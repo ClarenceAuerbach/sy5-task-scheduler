@@ -1,41 +1,38 @@
-#define _DEFAULT_SOURCE
+// #define _DEFAULT_SOURCE
 
 #include <stdint.h>
-#include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <dirent.h>
-#include <sys/types.h>
-#include <sys/dir.h>
 #include <limits.h>
-#include <string.h>
-#include <errno.h>
 
-struct string_t {
+
+typedef struct {
     uint32_t length;
     uint8_t *data;
-}typedef string_t;
+} string_t;
 
 /* bitmap representing what times a command should be run at
  * if the 8th and 16th hours are marked,
  * and the first (Monday) and fifth (Friday) days are marked
  * then it'll run Monday 8:00, Monday 16:00, Friday 8:00, Friday 16:00
  */
-struct timing_t {
+typedef struct {
     uint64_t minutes;
     uint32_t hours;
     uint8_t daysofweek;
-}typedef timing_t;
+} timing_t;
 
 /* argv[0] contains the name of the command to be called
  * it must exist and be nonempty
  */
-struct arguments_t {
+typedef struct {
     int argc;
-    struct string_t *argv;
-}typedef arguments_t;
+    string_t *argv;
+} arguments_t;
 
 /* type:
 * 'SI' if simple task
@@ -46,87 +43,136 @@ struct arguments_t {
 * If simple type, args is defined, nbcmds and cmd are not.
 * If any other (complex) type, args will not be defined, nbcmds and cmd will be.
 */
-struct command_t {
+typedef struct command_t {
     uint16_t type;
-    struct arguments_t args;
+    arguments_t args;
     uint32_t nbcmds;
     struct command_t *cmd;
-}typedef command_t;
+} command_t;
 
 /* Represents an entire task
 * Only represents simple or sequential commands for now
 */
-struct task_t {
+typedef struct {
     int id;
-    struct command_t *command;
-    struct timing_t timings;
-}typedef task_t;
+    command_t *command;
+    timing_t timings;
+} task_t;
 
-// TODO (not necessarily final prototype)
-int extract_task( char *dir_path, int id, task_t *dest_task){
-    int count = 0;
-    snprintf(dir_path, strlen(dir_path)+5, "%s%d", "/", id);
+
+int extract_cmd(command_t * dest_cmd, char * cmd_path) {
+    int count;
     
-    string_append(dir_path, id);
-    DIR *dir = opendir(dir_path);
-    if (dir == NULL) {
-        perror("cannot open dir");
-        goto error;
-    }
+    DIR *dir = opendir(cmd_path);
 
+    if (dir == NULL) {
+        perror("cannot open dir : cmd");
+        return -1;
+    }
     struct dirent *entry;
 
     while ((entry = readdir(dir))) {
         char *name = entry->d_name;
+        snprintf(cmd_path, strlen(cmd_path)+strlen(name) +1, "%s%s%s", cmd_path, "/", name);
+
+        if (!strcmp(name,"argv")) {
+            int fd = open(cmd_path, O_RDONLY);
+            if (fd < 0) {
+                closedir(dir);
+                return -1;
+            }
+            int read_val = read(fd, &(dest_cmd->args), sizeof(arguments_t));
+            if (read_val < sizeof(arguments_t)) {
+                closedir(dir);
+                return -1;
+            }
+        }
+
+        if (!strcmp(name,"type")) {
+            int fd = open(cmd_path, O_RDONLY);
+            if (fd < 0) {
+                closedir(dir);
+                return -1;
+            }
+            int read_val = read(fd, &(dest_cmd->type), sizeof(uint16_t));
+            if (read_val < sizeof(uint16_t)) {
+                closedir(dir);
+                return -1;
+            }
+        }
+        struct stat st ;
+        lstat(cmd_path, &st);
+        if (st.st_mode == S_IFDIR) {
+            char * dir_path_tmp ; 
+            strcpy(dir_path_tmp, cmd_path);
+            
+            extract_cmd((dest_cmd->cmd) + count , cmd_path);
+            
+            strcpy(cmd_path, dir_path_tmp);
+
+            count ++;
+        }
+        int dir_path_len = strlen(cmd_path); /* possibly you've saved the length previously */
+        cmd_path[dir_path_len -(strlen(name) + 1) ] = 0;
+    }
+    dest_cmd->nbcmds = (uint32_t) count;
+    return 0;
+}
+
+int extract_task(task_t *dest_task, char *dir_path, int id){
+    /* First iteration */
+
+    snprintf(dir_path, strlen(dir_path)+10, "%s%d", "/", id);
+        
+    DIR *dir = opendir(dir_path);
+    if (dir == NULL) {
+        perror("cannot open dir");
+        return -1;
+    }
+    struct dirent *entry;
+
+    while ((entry = readdir(dir))) {
+        char *name = entry->d_name;
+        snprintf(dir_path, strlen(dir_path)+strlen(name) +1, "%s%s%s", dir_path, "/", name);
 
         if (!strcmp(name, ".") || !strcmp(name, "..")) {
             continue;
         }
-        if (!strcmp(name,"stderr")) {
-            //TODO
-            count++;
-        }
-        if (!strcmp(name,"stdout")) {
-            //TODO
-            count++;
-        }
-        if (!strcmp(name,"times-exitcodes")) {
-            //TODO
-            count++;
-        }
+
         if (!strcmp(name,"timing")) {
-            //TODO
-            count++;
-        }
-        if (!strcmp(name,"argv")) {
-            //TODO
-            count++;
-        }
-        if (!strcmp(name,"type")) {
-            //TODO
-            count++;
-        }
-        
-        if (entry->d_type == DT_DIR) {
-            string_append(dir_path, "/");
-            string_append(dir_path, name);
-            int res = process_dir(dir_path, id, dest_task);
-            if (res == -1) {
-                goto error;
-            } else {
-                count += res;
+            int fd = open(dir_path, O_RDONLY);
+            if (fd < 0) {
+                closedir(dir);
+                return -1;
+            }
+            int read_val = read(fd, &(dest_task->timings), sizeof(timing_t));
+            if (read_val < sizeof(timing_t)) {
+                closedir(dir);
+                return -1;
             }
         }
-        string_truncate(dir_path, strlen(name)+1);
-    }
-    closedir(dir);
-    return count;
 
-    error:
-        if (errno) perror("process_dir"); 
-        if (dir) closedir(dir);
-        return -1;
+        struct stat st ;
+        lstat(dir_path, &st);
+        if (st.st_mode == S_IFDIR) {
+            char * dir_path_tmp ; 
+            strcpy(dir_path_tmp, dir_path);
+            
+            extract_cmd(dest_task->command, dir_path);
+            
+            strcpy(dir_path, dir_path_tmp);
+        }
+        int dir_path_len = strlen(dir_path); /* possibly you've saved the length previously */
+        dir_path[dir_path_len -(strlen(name) + 1) ] = 0;
+
+    }
+
+    closedir(dir);
+    return 0;
 }
+
+
+
 
 // TODO
 // int extract_all(task_t *task[], char *dir_path);
