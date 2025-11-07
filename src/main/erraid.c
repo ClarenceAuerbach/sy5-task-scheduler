@@ -90,22 +90,14 @@ int main(int argc, char *argv[])
         sleep(1);
     }
 
-    task_t * tasks;
+    //int nbt = count(); // TODO  commande count comptant toutes les taches dans l arborescence, à faire
+    task_t ** tasks;
+    //tasks = (task_t * * )malloc(nbt*sizeof(task_t *));
     extract_all(tasks, argv[0]);
 
     close(fd_out);
     close(fd_err);
     return 0;
-}
-
-int exec_task(command_t * com){
-
-    if (com->type == SQ){
-        for (int i=0; i<com->nbcmds; i++){
-            exec_simple_command(&com->cmd[i]);
-        }
-    }
-    return exec_command()
 }
 
 int exec_simple_command(command_t *com){
@@ -122,6 +114,15 @@ int exec_simple_command(command_t *com){
     return 0;
 }
 
-int exec_sequential_command(command_t *com){
+int exec_task(command_t * com){
 
+    if (com->type == SQ){
+        for (unsigned int i=0; i<com->nbcmds; i++){
+            exec_simple_command(&com->cmd[i]);
+        }
+    } else if (com->type == SI){
+        return exec_simple_command(com);
+    }
+    return 0; // à changer en fonction des valeurs de retour de exec_simple_command
 }
+
