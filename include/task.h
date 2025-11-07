@@ -51,12 +51,14 @@ typedef struct {
     timing_t timings;
 } task_t;
 
-void print_example_struct(example_struct);
+void print_example_struct( task_t example_struct);
 
 int extract_all(task_t *task[], char *dir_path);
 
 int extract_task(task_t *dest_task, char *dir_path);
 
 int extract_cmd(command_t * dest_cmd, char * cmd_path);
+
+int count_dir_size(char *dir_path, int only_count_dir);
 
 #endif

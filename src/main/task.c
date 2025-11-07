@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -57,9 +58,26 @@ typedef struct {
     timing_t timings;
 } task_t;
 
+/* Counts the amount of files in a dir if only_count_dir = 0 ,
+*  counts the amount of directories if only_count_dir = 1 */
+int count_dir_size(char *dir_path , int only_count_dir){
+    DIR *dir = opendir(dir_path);
+    if (dir == NULL) {
+        perror("cannot open tasks");
+        return -1;
+    }
+    struct dirent *entry;
+    int i = 0;
+    while ((entry = readdir(dir))) {
+        struct stat st ;
+        stat(dir_path, &st);
+        if ( !only_count_dir || S_ISDIR(st.st_mode) ) i++;
+    }
+    return i;
+}
 
+/* Command tree to struct command_t (recursive) */
 int extract_cmd(command_t * dest_cmd, char * cmd_path) {
-    
     
     DIR *dir = opendir(cmd_path);
 
@@ -105,22 +123,31 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
         struct stat st ;
         stat(cmd_path, &st);
         if ( S_ISDIR(st.st_mode) ) {
-            char dir_path_tmp[strlen(cmd_path)] ; 
-            strcpy(dir_path_tmp, cmd_path);
+            /*First pass we instantiate the necessary amount of memory */
+        
+            if(!count){
+                int nb = count_dir_size(cmd_path, 1);
+                dest_cmd->cmd = (command_t *)malloc( nb * sizeof(command_t));
+            } 
             
-            extract_cmd((dest_cmd->cmd) + count , cmd_path);
-            
-            strcpy(cmd_path, dir_path_tmp);
+            /* We copy the current path because it will be modified in the recursion , 
+            give the copy 64 more bytes for the size of the sub-dir file names (could be less)*/
+            char dir_path_copy[strlen(cmd_path)+ 64] ; 
+            strcpy(dir_path_copy, cmd_path);
+
+            extract_cmd((dest_cmd->cmd) + count , dir_path_copy);
 
             count ++;
         }
-        int dir_path_len = strlen(cmd_path); /* possibly you've saved the length previously */
+        /* Truncates the la part of the path */
+        int dir_path_len = strlen(cmd_path); 
         cmd_path[dir_path_len -(strlen(name) + 1) ] = 0;
     }
     dest_cmd->nbcmds = (uint32_t) count;
     return 0;
 }
 
+/* Task directory to struct task_t, calls extract_cmd */
 int extract_task(task_t *dest_task, char *dir_path){
         
     DIR *dir = opendir(dir_path);
@@ -157,14 +184,16 @@ int extract_task(task_t *dest_task, char *dir_path){
         struct stat st ;
         stat(dir_path, &st);
         if ( S_ISDIR(st.st_mode) ) {
-            char dir_path_tmp[strlen(dir_path)] ; 
-            strcpy(dir_path_tmp, dir_path);
-            
-            extract_cmd(dest_task->command, dir_path);
-            
-            strcpy(dir_path, dir_path_tmp);
+            /* We copy the current path because it will be modified in the recursion , 
+            give the copy 64 more bytes for the size of the sub-dir file names (could be less)*/
+            char dir_path_copy[strlen(dir_path)] ; 
+            strcpy(dir_path_copy, dir_path);
+    
+            extract_cmd(dest_task->command, dir_path_copy);
         }
-        int dir_path_len = strlen(dir_path); /* possibly you've saved the length previously */
+
+        /* Truncates the la part of the path */
+        int dir_path_len = strlen(dir_path); 
         dir_path[dir_path_len -(strlen(name) + 1) ] = 0;
 
     }
@@ -173,6 +202,7 @@ int extract_task(task_t *dest_task, char *dir_path){
     return 0;
 }
 
+/* Extracts all the tasks in a dir_path directory, calls extract_task */
 int extract_all(task_t *task[], char *dir_path){
     int ret = 0;
     DIR *dir = opendir(dir_path);
@@ -187,8 +217,12 @@ int extract_all(task_t *task[], char *dir_path){
         char tmp[ strlen(dir_path)];
         strcpy(tmp, dir_path);
         snprintf(dir_path, strlen(dir_path)+strlen(entry->d_name) +1, "%s/%s", tmp, entry->d_name);
+        task[i] = (task_t *)malloc(sizeof(task_t));
         ret += extract_task( task[i] , dir_path);
         i++;
     }
     return ret;
 }
+
+
+
