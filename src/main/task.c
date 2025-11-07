@@ -7,7 +7,6 @@
 #include <dirent.h>
 #include <limits.h>
 
-#define SI (('S'<<8)|'I')
 
 typedef struct {
     uint32_t length;
