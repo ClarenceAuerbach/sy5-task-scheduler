@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include "task.h"
 #define SI (('S'<<8)|'I')
+#define SQ (('S'<<8)|'Q')
 
 char RUN_DIRECTORY[4096] ;
 
@@ -89,12 +90,25 @@ int main(int argc, char *argv[])
         sleep(1);
     }
 
+    task_t * tasks;
+    extract_all(tasks, argv[0]);
+
     close(fd_out);
     close(fd_err);
     return 0;
 }
 
-int exe_command(command_t *com){
+int exec_task(command_t * com){
+
+    if (com->type == SQ){
+        for (int i=0; i<com->nbcmds; i++){
+            exec_simple_command(&com->cmd[i]);
+        }
+    }
+    return exec_command()
+}
+
+int exec_simple_command(command_t *com){
     
     if (com->type == SI){
         switch (fork()){
@@ -106,4 +120,8 @@ int exe_command(command_t *com){
         }
     }
     return 0;
+}
+
+int exec_sequential_command(command_t *com){
+
 }
