@@ -8,6 +8,7 @@
 #include <time.h>
 #include <unistd.h>
 #include "task.h"
+#define SI (('S'<<8)|'I')
 
 char RUN_DIRECTORY[4096] ;
 
@@ -95,11 +96,11 @@ int main(int argc, char *argv[])
 
 int exe_command(command_t *com){
     
-    if (com->type == 'SI'){
+    if (com->type == SI){
         switch (fork()){
         case -1: perror ("error when intializing processus");
         return -1;
-        case 0: execvp(com->args.argv[0].data, com->args.argv+1);
+        case 0: execvp((const char *) com->args.argv[0].data, (char *const *)com->args.argv+1);
         _exit(1);
         default: break;
         }
