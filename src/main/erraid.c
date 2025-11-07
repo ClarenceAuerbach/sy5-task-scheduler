@@ -13,6 +13,7 @@ char RUN_DIRECTORY[4096] ;
 
 int main(int argc, char *argv[])
 {
+    //signal (SIGCHLD, SIG_IGN);    how to treat zombie childs? wait() might cause a problem for example with child sleeping when demon needs to continue running
 
     pid_t child_pid = fork(); 
     assert(child_pid != -1);
@@ -89,5 +90,19 @@ int main(int argc, char *argv[])
 
     close(fd_out);
     close(fd_err);
+    return 0;
+}
+
+int exe_command(command_t *com){
+    
+    if (com->type == 'SI'){
+        switch (fork()){
+        case -1: perror ("error when intializing processus");
+        return -1;
+        case 0: execvp(com->args.argv[0].data, com->args.argv+1);
+        _exit(1);
+        default: break;
+        }
+    }
     return 0;
 }
