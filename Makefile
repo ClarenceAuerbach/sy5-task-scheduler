@@ -1,32 +1,37 @@
-.PHONY: run kill clean
+.PHONY: run kill clean test
 
 CC      = gcc
 CFLAGS  = -Wall -Wextra -std=c17 -Iinclude
-SRC_DIR = src/main
-OBJ_DIR = obj
-BIN_DIR = bin
 
-SRCS = $(wildcard $(SRC_DIR)/*.c)
-# Generates obj/xxx.o files from src/xxx.c files
-OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
-TARGET = $(BIN_DIR)/erraid
+SRCS_MAIN = $(wildcard src/main/*.c)
+SRCS_TEST = $(wildcard src/test/*.c)
+OBJS_MAIN = $(SRCS_MAIN:src/main/%.c=obj/main/%.c)
+OBJS_TEST = $(OBJS_MAIN:src/test/%.c=obj/test/%.c)
 
+all: bin/erraid test
 
-all: $(TARGET)
+test: bin/tests
+	./bin/tests
 
-$(BIN_DIR) $(OBJ_DIR):
-	mkdir -p $@
+bin/erraid: $(OBJS_MAIN)
+	mkdir -p bin
+	$(CC) $^ -o $@
 
-# Rule for generating obj files from source files
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
+bin/tests: $(OBJS_TEST)
+	mkdir -p bin
+	$(CC) $^ -o $@
+
+obj/main/%.o: src/main/%.c
+	mkdir -p obj/main
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Compilation using obj files
-$(TARGET): $(OBJS) | $(BIN_DIR)
-	$(CC) $(OBJS) -o $@
+obj/test/%.o: src/test/%.c
+	mkdir -p obj/test
+	$(CC) $(CFLAGS) -c $< -o $@
 
 distclean:
-	rm -rf $(OBJ_DIR) $(BIN_DIR)
+	rm -rf bin obj
+
 # Won't be permanent, removed once we have tadmor
 run : 
 	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid $(USER)
