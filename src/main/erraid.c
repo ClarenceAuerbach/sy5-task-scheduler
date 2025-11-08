@@ -47,12 +47,19 @@ int run(){
 
     task_t * * tasks;
     int tasks_length = count_dir_size(RUN_DIRECTORY , 1);
+    // debug printf( "%d\n" , tasks_length);
     tasks = (task_t * * ) malloc(tasks_length *sizeof(task_t *));
     
     if ((ret = extract_all(tasks, RUN_DIRECTORY))){
         perror(" extract_all failed ");
+        print_task( *(tasks[0]));
+        print_task( *(tasks[1]));
         return -1;
     }
+
+    printf( "yooo6\n");
+    printf( "%d\n" , tasks[0]->id);
+    printf( "%d\n" , tasks[1]->id);
 
     int fd1 , fd2 , fd3 ;
     char stdout_path[strlen(RUN_DIRECTORY) + 16];
@@ -64,7 +71,9 @@ int run(){
             snprintf(stdout_path, strlen(stdout_path), "%s/%d/stdout", RUN_DIRECTORY, tasks[i]->id);
             snprintf(stderr_path, strlen(stderr_path), "%s/%d/stderr", RUN_DIRECTORY, tasks[i]->id);
             snprintf(times_exitc_path, strlen(times_exitc_path), "%s/%d/times-exitcodes", RUN_DIRECTORY, tasks[i]->id);
-            
+            printf( "%s\n" , stdout_path);
+            printf( "%s\n" , stderr_path);
+            printf( "%s\n" , times_exitc_path);
             fd1 = open( stdout_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU);
             fd2 = open( stderr_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU);
             fd3 = open( times_exitc_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU);
@@ -118,17 +127,13 @@ int main(int argc, char *argv[])
     
     /* Main loop */
     int ret = 0;
-    while(ret<1)
+    while(1)
     {  
-        printf("%s\n" , RUN_DIRECTORY);
-        printf("%s\n" , pid_path);
-        fsync(STDOUT_FILENO);
-
-        run();
+        ret += run();
         if( ret != 0){
             perror( " An Error occured during run() ");
+            break;
         }
-        ret++;
     }
     return ret;
 }

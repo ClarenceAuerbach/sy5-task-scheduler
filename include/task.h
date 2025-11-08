@@ -51,7 +51,10 @@ typedef struct {
     timing_t timings;
 } task_t;
 
-void print_example_struct( task_t example_struct);
+
+void print_command(command_t command);
+
+void print_task(task_t task);
 
 int extract_all(task_t *task[], char *dir_path);
 

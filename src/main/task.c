@@ -58,17 +58,61 @@ typedef struct {
     timing_t timings;
 } task_t;
 
+/* Print bits for any datatype assumes little endian */
+void printBits(size_t const size, void const * const ptr)
+{
+    unsigned char *b = (unsigned char*) ptr;
+    unsigned char byte;
+    int i, j;
+    
+    for (i = size-1; i >= 0; i--) {
+        for (j = 7; j >= 0; j--) {
+            byte = (b[i] >> j) & 1;
+            printf("%u", byte);
+        }
+    }
+    puts("");
+}
+
+/* Prints a command_t */
+void print_command( command_t command){
+    printf("Command : \n" );
+    printf("  type : %d \n" , command.type);
+    printf("  nbcmds : %d \n" , command.nbcmds);
+    printf("  argv :\n");
+    for( int i=0 ; i < command.args.argc ; i ++){
+        char data[command.args.argv[i].length];
+        for( int j=0 ; j < (int) command.args.argv[i].length; j ++){
+            data[j] = (char) (command.args.argv[i].data)[j];
+        }
+        printf( "    %s \n" , data);
+    }
+}
+
+/* Prints a task_t */
+void print_task( task_t task){
+    printf( "Task ID : %d\n", task.id );
+    printf( "Timing : \n" );
+    printBits(8, &(task.timings.minutes));
+    printBits(2, &(task.timings.hours));
+    printBits(1, &(task.timings.daysofweek));
+    print_command(*(task.command));
+}
+
 /* Counts the amount of files in a dir if only_count_dir = 0 ,
 *  counts the amount of directories if only_count_dir = 1 */
-int count_dir_size(char *dir_path , int only_count_dir){
+int count_dir_size(char *dir_path , int only_count_dir)
+{
     DIR *dir = opendir(dir_path);
     if (dir == NULL) {
-        perror("cannot open tasks");
+        perror("cannot open dir path");
         return -1;
     }
     struct dirent *entry;
     int i = 0;
     while ((entry = readdir(dir))) {
+        if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
+
         struct stat st ;
         stat(dir_path, &st);
         if ( !only_count_dir || S_ISDIR(st.st_mode) ) i++;
@@ -77,7 +121,8 @@ int count_dir_size(char *dir_path , int only_count_dir){
 }
 
 /* Command tree to struct command_t (recursive) */
-int extract_cmd(command_t * dest_cmd, char * cmd_path) {
+int extract_cmd(command_t * dest_cmd, char * cmd_path) 
+{
     
     DIR *dir = opendir(cmd_path);
 
@@ -88,12 +133,13 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
     struct dirent *entry;
     int count;
     while ((entry = readdir(dir))) {
-        char *name = entry->d_name;
-        char tmp[ strlen(cmd_path)];
-        strcpy(tmp, cmd_path);
-        snprintf(cmd_path, strlen(cmd_path)+strlen(name) +1, "%s/%s", tmp, name);
 
-        if (!strcmp(name,"argv")) {
+        if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
+
+        strcat(cmd_path , "/");
+        strcat(cmd_path , entry->d_name);
+        
+        if (!strcmp(entry->d_name,"argv")) {
             int fd = open(cmd_path, O_RDONLY);
             if (fd < 0) {
                 closedir(dir);
@@ -107,7 +153,7 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
             close(fd);
         }
 
-        if (!strcmp(name,"type")) {
+        if (!strcmp(entry->d_name,"type")) {
             int fd = open(cmd_path, O_RDONLY);
             if (fd < 0) {
                 closedir(dir);
@@ -124,7 +170,6 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
         stat(cmd_path, &st);
         if ( S_ISDIR(st.st_mode) ) {
             /*First pass we instantiate the necessary amount of memory */
-        
             if(!count){
                 int nb = count_dir_size(cmd_path, 1);
                 dest_cmd->cmd = (command_t *)malloc( nb * sizeof(command_t));
@@ -141,14 +186,15 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
         }
         /* Truncates the la part of the path */
         int dir_path_len = strlen(cmd_path); 
-        cmd_path[dir_path_len -(strlen(name) + 1) ] = 0;
+        cmd_path[dir_path_len -(strlen(entry->d_name) + 1) ] = 0;
     }
     dest_cmd->nbcmds = (uint32_t) count;
     return 0;
 }
 
 /* Task directory to struct task_t, calls extract_cmd */
-int extract_task(task_t *dest_task, char *dir_path){
+int extract_task(task_t *dest_task, char *dir_path)
+{
         
     DIR *dir = opendir(dir_path);
     if (dir == NULL) {
@@ -158,16 +204,13 @@ int extract_task(task_t *dest_task, char *dir_path){
     struct dirent *entry;
     
     while ((entry = readdir(dir))) {
-        char *name = entry->d_name;
-        char tmp[ strlen(dir_path)];
-        strcpy(tmp, dir_path);
-        snprintf(dir_path, strlen(dir_path)+strlen(name) +1, "%s/%s", tmp, name);
+        
+        if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
 
-        if (!strcmp(name, ".") || !strcmp(name, "..")) {
-            continue;
-        }
+        strcat(dir_path , "/");
+        strcat(dir_path , entry->d_name);
 
-        if (!strcmp(name,"timing")) {
+        if (!strcmp(entry->d_name,"timing")) {
             int fd = open(dir_path, O_RDONLY);
             if (fd < 0) {
                 closedir(dir);
@@ -186,7 +229,7 @@ int extract_task(task_t *dest_task, char *dir_path){
         if ( S_ISDIR(st.st_mode) ) {
             /* We copy the current path because it will be modified in the recursion , 
             give the copy 64 more bytes for the size of the sub-dir file names (could be less)*/
-            char dir_path_copy[strlen(dir_path)] ; 
+            char dir_path_copy[strlen(dir_path) + 64] ; 
             strcpy(dir_path_copy, dir_path);
     
             extract_cmd(dest_task->command, dir_path_copy);
@@ -194,7 +237,7 @@ int extract_task(task_t *dest_task, char *dir_path){
 
         /* Truncates the la part of the path */
         int dir_path_len = strlen(dir_path); 
-        dir_path[dir_path_len -(strlen(name) + 1) ] = 0;
+        dir_path[dir_path_len -(strlen(entry->d_name) + 1) ] = 0;
 
     }
 
@@ -203,7 +246,8 @@ int extract_task(task_t *dest_task, char *dir_path){
 }
 
 /* Extracts all the tasks in a dir_path directory, calls extract_task */
-int extract_all(task_t *task[], char *dir_path){
+int extract_all(task_t *task[], char *dir_path)
+{
     int ret = 0;
     DIR *dir = opendir(dir_path);
     if (dir == NULL) {
@@ -214,11 +258,24 @@ int extract_all(task_t *task[], char *dir_path){
     int i = 0;
     
     while ((entry = readdir(dir))) {
-        char tmp[ strlen(dir_path)];
-        strcpy(tmp, dir_path);
-        snprintf(dir_path, strlen(dir_path)+strlen(entry->d_name) +1, "%s/%s", tmp, entry->d_name);
+        printf( "%s\n" , entry->d_name);
+        
+        if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
+        
+        strcat(dir_path , "/");
+        strcat(dir_path , entry->d_name);
+        
         task[i] = (task_t *)malloc(sizeof(task_t));
-        ret += extract_task( task[i] , dir_path);
+        
+        char dir_path_copy[strlen(dir_path) + 64] ; 
+        strcpy(dir_path_copy, dir_path);
+        
+        ret += extract_task( task[i] , dir_path_copy);
+        
+        /* Truncates the la part of the path */
+        int dir_path_len = strlen(dir_path); 
+        dir_path[dir_path_len -(strlen(entry->d_name) + 1) ] = 0;
+
         i++;
     }
     return ret;
