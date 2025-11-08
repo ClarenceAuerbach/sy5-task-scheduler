@@ -46,7 +46,7 @@ int run(){
     int ret = 0;
 
     task_t * * tasks;
-    int tasks_length = count_dir_size(RUN_DIRECTORY , 0);
+    int tasks_length = count_dir_size(RUN_DIRECTORY , 1);
     tasks = (task_t * * ) malloc(tasks_length *sizeof(task_t *));
     
     if ((ret = extract_all(tasks, RUN_DIRECTORY))){
@@ -111,9 +111,10 @@ int main(int argc, char *argv[])
     /* Writing the pid in a file for make kill */
     char pid_path[2048] ;
     int fd;
-    pid_t deamon_pid = getpid();
-    snprintf(pid_path, strlen(RUN_DIRECTORY)+16,"%s/erraid_pid.pid",  RUN_DIRECTORY);
-    if( (fd = open( pid_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU)) ) write( fd , &deamon_pid , 4);
+    char * deamon_pid = malloc(16);
+    sprintf(deamon_pid, "%d", getpid());
+    snprintf(pid_path, strlen(argv[1])+28,"/tmp/%s/erraid/erraid_pid.pid",  argv[1]);
+    if( (fd = open( pid_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU)) ) write( fd , deamon_pid , 16);
     
     /* Main loop */
     int ret = 0;
