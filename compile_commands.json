@@ -1,0 +1,34 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-std=c17",
+      "-Iinclude",
+      "-c",
+      "-o",
+      "obj/string_t.o",
+      "src/main/string_t.c"
+    ],
+    "directory": "/home/louis/school/s5/sy5/sy5-task-scheduler",
+    "file": "/home/louis/school/s5/sy5/sy5-task-scheduler/src/main/string_t.c",
+    "output": "/home/louis/school/s5/sy5/sy5-task-scheduler/obj/string_t.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-std=c17",
+      "-Iinclude",
+      "-c",
+      "-o",
+      "obj/task.o",
+      "src/main/task.c"
+    ],
+    "directory": "/home/louis/school/s5/sy5/sy5-task-scheduler",
+    "file": "/home/louis/school/s5/sy5/sy5-task-scheduler/src/main/task.c",
+    "output": "/home/louis/school/s5/sy5/sy5-task-scheduler/obj/task.o"
+  }
+]
