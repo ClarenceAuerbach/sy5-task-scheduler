@@ -1,5 +1,6 @@
 #ifndef TASK_H
 #define TASK_H
+
 #include <stdint.h>
 
 typedef struct {
@@ -35,7 +36,7 @@ typedef struct {
 * If simple type, args is defined, nbcmds and cmd are not.
 * If any other (complex) type, args will not be defined, nbcmds and cmd will be.
 */
-typedef struct command_t {
+typedef struct {
     uint16_t type;
     arguments_t args;
     uint32_t nbcmds;
@@ -50,8 +51,6 @@ typedef struct {
     command_t *command;
     timing_t timings;
 } task_t;
-
-void print_example_struct(example_struct);
 
 int extract_all(task_t *task[], char *dir_path);
 
