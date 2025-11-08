@@ -106,23 +106,28 @@ int main(int argc, char *argv[])
     if( child_pid > 0 ) exit(EXIT_SUCCESS); 
 
     /* Instantiating RUN_DIRECTORY with default directory (argv[1] -> $USER) */
-    snprintf(RUN_DIRECTORY, strlen(argv[1])+18,"/tmp/%s/erraid/tasks",  argv[1]);
+    snprintf(RUN_DIRECTORY, strlen(argv[1])+19,"/tmp/%s/erraid/tasks",  argv[1]);
     
     /* Writing the pid in a file for make kill */
     char pid_path[2048] ;
     int fd;
     pid_t deamon_pid = getpid();
-    snprintf(pid_path, strlen(RUN_DIRECTORY)+15,"%s/erraid_pid.pid",  RUN_DIRECTORY);
+    snprintf(pid_path, strlen(RUN_DIRECTORY)+16,"%s/erraid_pid.pid",  RUN_DIRECTORY);
     if( (fd = open( pid_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU)) ) write( fd , &deamon_pid , 4);
     
     /* Main loop */
     int ret = 0;
-    while(true)
+    while(ret<1)
     {  
-        ret += run();
+        printf("%s\n" , RUN_DIRECTORY);
+        printf("%s\n" , pid_path);
+        fsync(STDOUT_FILENO);
+
+        run();
         if( ret != 0){
             perror( " An Error occured during run() ");
         }
+        ret++;
     }
     return ret;
 }
