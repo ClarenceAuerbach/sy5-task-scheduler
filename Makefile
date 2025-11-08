@@ -32,5 +32,5 @@ run :
 	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid $(USER)
 
 kill : 
-	kill $$(cat /tmp/$(USER)/erraid/tasks/erraid_pid.pid) 2>/dev/null || true
-	rm -f /tmp/$(USER)/erraid/tasks/erraid_pid.pid
+	kill $$(cat /tmp/$(USER)/erraid/erraid_pid.pid) 2>/dev/null || true
+	rm -f /tmp/$(USER)/erraid/erraid_pid.pid
