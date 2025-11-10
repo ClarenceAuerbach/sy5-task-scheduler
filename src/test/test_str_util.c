@@ -1,10 +1,8 @@
 #include <assert.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "str_util.h"
-#include "colours.h"
 
 int main(void) {
     char s1[] = "Hello ";
