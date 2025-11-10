@@ -36,7 +36,7 @@ typedef struct {
 * If simple type, args is defined, nbcmds and cmd are not.
 * If any other (complex) type, args will not be defined, nbcmds and cmd will be.
 */
-typedef struct {
+typedef struct command_t {
     uint16_t type;
     arguments_t args;
     uint32_t nbcmds;

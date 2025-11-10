@@ -8,12 +8,12 @@
       "-Iinclude",
       "-c",
       "-o",
-      "obj/string_t.o",
-      "src/main/string_t.c"
+      "obj/main/erraid.o",
+      "src/main/erraid.c"
     ],
     "directory": "/home/louis/school/s5/sy5/sy5-task-scheduler",
-    "file": "/home/louis/school/s5/sy5/sy5-task-scheduler/src/main/string_t.c",
-    "output": "/home/louis/school/s5/sy5/sy5-task-scheduler/obj/string_t.o"
+    "file": "/home/louis/school/s5/sy5/sy5-task-scheduler/src/main/erraid.c",
+    "output": "/home/louis/school/s5/sy5/sy5-task-scheduler/obj/main/erraid.o"
   },
   {
     "arguments": [
@@ -24,11 +24,27 @@
       "-Iinclude",
       "-c",
       "-o",
-      "obj/task.o",
+      "obj/main/str_util.o",
+      "src/main/str_util.c"
+    ],
+    "directory": "/home/louis/school/s5/sy5/sy5-task-scheduler",
+    "file": "/home/louis/school/s5/sy5/sy5-task-scheduler/src/main/str_util.c",
+    "output": "/home/louis/school/s5/sy5/sy5-task-scheduler/obj/main/str_util.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-std=c17",
+      "-Iinclude",
+      "-c",
+      "-o",
+      "obj/main/task.o",
       "src/main/task.c"
     ],
     "directory": "/home/louis/school/s5/sy5/sy5-task-scheduler",
     "file": "/home/louis/school/s5/sy5/sy5-task-scheduler/src/main/task.c",
-    "output": "/home/louis/school/s5/sy5/sy5-task-scheduler/obj/task.o"
+    "output": "/home/louis/school/s5/sy5/sy5-task-scheduler/obj/main/task.o"
   }
 ]
