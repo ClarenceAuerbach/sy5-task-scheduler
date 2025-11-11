@@ -52,14 +52,12 @@ int run(){
     
     if ((ret = extract_all(tasks, RUN_DIRECTORY))){
         perror(" extract_all failed ");
-        print_task( *(tasks[0]));
-        print_task( *(tasks[1]));
         return -1;
     }
 
-    printf( "yooo6\n");
-    printf( "%d\n" , tasks[0]->id);
-    printf( "%d\n" , tasks[1]->id);
+    printf( "%d\n" , tasks_length);
+    print_task( *(tasks[0]));
+    print_task( *(tasks[1]));
 
     int fd1 , fd2 , fd3 ;
     char stdout_path[strlen(RUN_DIRECTORY) + 16];

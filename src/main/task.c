@@ -26,21 +26,6 @@ void printBits(size_t const size, void const * const ptr)
     puts("");
 }
 
-/* Prints a command_t */
-void print_command( command_t command){
-    printf("Command : \n" );
-    printf("  type : %d \n" , command.type);
-    printf("  nbcmds : %d \n" , command.nbcmds);
-    printf("  argv :\n");
-    for( int i=0 ; i < command.args.argc ; i ++){
-        char data[command.args.argv[i].length];
-        for( int j=0 ; j < (int) command.args.argv[i].length; j ++){
-            data[j] = (char) (command.args.argv[i].data)[j];
-        }
-        printf( "    %s \n" , data);
-    }
-}
-
 /* Prints a task_t */
 void print_task( task_t task){
     printf( "Task ID : %d\n", task.id );
@@ -48,7 +33,17 @@ void print_task( task_t task){
     printBits(8, &(task.timings.minutes));
     printBits(2, &(task.timings.hours));
     printBits(1, &(task.timings.daysofweek));
-    print_command(*(task.command));
+    printf("Command : \n" );
+    printf("  type : %d \n" , task.command->type);
+    printf("  nbcmds : %d \n" , task.command->nbcmds);
+    printf("  argv :\n");
+    for( int i=0 ; i < task.command->args.argc ; i ++){
+        char data[task.command->args.argv[i].length];
+        for( int j=0 ; j < (int) task.command->args.argv[i].length; j ++){
+            data[j] = (char) (task.command->args.argv[i].data)[j];
+        }
+        printf( "    %s \n" , data);
+    }
 }
 
 /* Counts the amount of files in a dir if only_count_dir = 0 ,
@@ -87,7 +82,7 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
 
         strcat(cmd_path , "/");
         strcat(cmd_path , entry->d_name);
-        
+        printf("%s\n", cmd_path);
         if (!strcmp(entry->d_name,"argv")) {
             int fd = open(cmd_path, O_RDONLY);
             if (fd < 0) {
@@ -95,7 +90,8 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
                 return -1;
             }
             int read_val = read(fd, &(dest_cmd->args), sizeof(arguments_t));
-            if (read_val < (int) sizeof(arguments_t)) {
+            //printf("%s", ((dest_cmd->args).argv)->data);
+            if (read_val < 0) {
                 closedir(dir);
                 return -1;
             }
@@ -109,7 +105,7 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
                 return -1;
             }
             int read_val = read(fd, &(dest_cmd->type), sizeof(uint16_t));
-            if (read_val < (int) sizeof(uint16_t)) {
+            if (read_val < 0) {
                 closedir(dir);
                 return -1;
             }
@@ -141,8 +137,10 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
     return 0;
 }
 
-int extract_task(task_t *dest_task, char *dir_path){
-   DIR *dir = opendir(dir_path);
+/* Task directory to struct task_t, calls extract_cmd */
+int extract_task(task_t *dest_task, char *dir_path)
+{     
+    DIR *dir = opendir(dir_path);
     if (dir == NULL) {
         perror("cannot open dir");
         return -1;
@@ -150,7 +148,6 @@ int extract_task(task_t *dest_task, char *dir_path){
     struct dirent *entry;
     
     while ((entry = readdir(dir))) {
-        
         if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
 
         strcat(dir_path , "/");
@@ -163,7 +160,7 @@ int extract_task(task_t *dest_task, char *dir_path){
                 return -1;
             }
             int read_val = read(fd, &(dest_task->timings), sizeof(timing_t));
-            if (read_val < (int) sizeof(timing_t)) {
+            if (read_val < 0) {
                 closedir(dir);
                 return -1;
             }
@@ -177,7 +174,7 @@ int extract_task(task_t *dest_task, char *dir_path){
             give the copy 64 more bytes for the size of the sub-dir file names (could be less)*/
             char dir_path_copy[strlen(dir_path) + 64] ; 
             strcpy(dir_path_copy, dir_path);
-    
+            dest_task->command = (command_t *) malloc(sizeof(command_t));
             extract_cmd(dest_task->command, dir_path_copy);
         }
 
@@ -204,18 +201,15 @@ int extract_all(task_t *task[], char *dir_path)
     int i = 0;
     
     while ((entry = readdir(dir))) {
-        printf( "%s\n" , entry->d_name);
-        
         if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
         
         strcat(dir_path , "/");
         strcat(dir_path , entry->d_name);
         
-        task[i] = (task_t *)malloc(sizeof(task_t));
-        
         char dir_path_copy[strlen(dir_path) + 64] ; 
         strcpy(dir_path_copy, dir_path);
         
+        task[i] = (task_t *)malloc(sizeof(task_t));
         ret += extract_task( task[i] , dir_path_copy);
         
         /* Truncates the la part of the path */

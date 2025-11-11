@@ -51,7 +51,7 @@ distclean:
 	rm -rf bin obj
 
 # Won't be permanent, removed once we have tadmor
-run : 
+run : $(TARGET)
 	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid $(USER)
 
 kill : 
