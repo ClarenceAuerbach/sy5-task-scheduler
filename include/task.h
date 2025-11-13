@@ -23,7 +23,7 @@ typedef struct {
  * it must exist and be nonempty
  */
 typedef struct {
-    int argc;
+    uint32_t argc;
     string_t *argv;
 } arguments_t;
 

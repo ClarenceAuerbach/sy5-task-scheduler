@@ -26,6 +26,13 @@ void printBits(size_t const size, void const * const ptr)
     puts("");
 }
 
+/* Prints a string_t */
+void print_string( string_t string){
+    for(int i=0 ; i < (int) string.length ; i++){
+        printf("%c", (string.data)[i]);
+    }
+    printf("\n");
+}
 /* Prints a task_t */
 void print_task( task_t task){
     printf( "Task ID : %d\n", task.id );
@@ -39,13 +46,17 @@ void print_task( task_t task){
     printf("  type : %s\n" , type);
     printf("  nbcmds : %d \n" , task.command->nbcmds);
     printf("  argv :\n");
-    for( int i=0 ; i < task.command->args.argc ; i ++){
-        char data[task.command->args.argv[i].length];
-        for( int j=0 ; j < (int) task.command->args.argv[i].length; j ++){
-            data[j] = (char) (task.command->args.argv[i].data)[j];
-        }
-        printf( "    %s \n" , data);
+    
+    for(int i=0 ; i < (int) task.command->args.argc ; i++){
+        print_string((task.command->args.argv)[i]);
     }
+}
+
+uint32_t swap_endian(uint32_t val) {
+    return ((val >> 24) & 0xff)      |  // Déplace octet 3 vers octet 0
+           ((val >> 8)  & 0xff00)    |  // Déplace octet 2 vers octet 1
+           ((val << 8)  & 0xff0000)  |  // Déplace octet 1 vers octet 2
+           ((val << 24) & 0xff000000);  // Déplace octet 0 vers octet 3
 }
 
 /* Counts the amount of files in a dir if only_count_dir = 0 ,
@@ -69,8 +80,8 @@ int count_dir_size(char *dir_path , int only_count_dir)
     return i;
 }
 
-int extract_cmd(command_t * dest_cmd, char * cmd_path) {
-    DIR *dir = opendir(cmd_path);
+int extract_cmd(command_t * dest_cmd, char * dir_path) {
+    DIR *dir = opendir(dir_path);
 
     if (dir == NULL) {
         perror("cannot open dir : cmd");
@@ -82,26 +93,32 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
 
         if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
 
-        strcat(cmd_path , "/");
-        strcat(cmd_path , entry->d_name);
-        printf("%s\n", cmd_path);
+        strcat(dir_path , "/");
+        strcat(dir_path , entry->d_name);
+
         if (!strcmp(entry->d_name,"argv")) {
-            int fd = open(cmd_path, O_RDONLY);
+            int fd = open(dir_path, O_RDONLY);
             if (fd < 0) {
                 closedir(dir);
                 return -1;
             }
-            int * argc = &(dest_cmd->args.argc);
+            uint32_t * argc = &(dest_cmd->args.argc);
             int read_val = read(fd, argc, 4);
+            *argc = swap_endian(*argc);
 
             dest_cmd->args.argv = (string_t *) malloc((*argc)*sizeof(string_t));
             string_t * argv = dest_cmd->args.argv;
-
-            for(int i=0 ; i< *argc; i++){
+            
+            for(int i=0 ; i< (int) *argc; i++){
                 read(fd, &((argv+i)->length), 4);
-                uint32_t str_len = (argv+i)->length;
+                
+                uint32_t str_len = swap_endian((argv+i)->length);
+                ((argv+i)->length) = str_len;
+
                 (argv+i)->data = (uint8_t *) malloc(str_len);
+                
                 read(fd, (argv+i)->data, str_len);
+
             }
             if (read_val < 0) {
                 closedir(dir);
@@ -111,7 +128,7 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
         }
 
         if (!strcmp(entry->d_name,"type")) {
-            int fd = open(cmd_path, O_RDONLY);
+            int fd = open(dir_path, O_RDONLY);
             if (fd < 0) {
                 closedir(dir);
                 return -1;
@@ -123,27 +140,28 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
             }
             close(fd);
         }
+
         struct stat st ;
-        stat(cmd_path, &st);
+        stat(dir_path, &st);
         if ( S_ISDIR(st.st_mode) ) {
             /*First pass we instantiate the necessary amount of memory */
             if(!count){
-                int nb = count_dir_size(cmd_path, 1);
+                int nb = count_dir_size(dir_path, 1);
                 dest_cmd->cmd = (command_t *)malloc( nb * sizeof(command_t));
             } 
             
             /* We copy the current path because it will be modified in the recursion , 
             give the copy 64 more bytes for the size of the sub-dir file names (could be less)*/
-            char dir_path_copy[strlen(cmd_path)+ 64] ; 
-            strcpy(dir_path_copy, cmd_path);
+            char dir_path_copy[strlen(dir_path)+ 64] ; 
+            strcpy(dir_path_copy, dir_path);
 
             extract_cmd((dest_cmd->cmd) + count , dir_path_copy);
 
             count ++;
         }
         /* Truncates the la part of the path */
-        int dir_path_len = strlen(cmd_path); 
-        cmd_path[dir_path_len -(strlen(entry->d_name) + 1) ] = 0;
+        int dir_path_len = strlen(dir_path); 
+        dir_path[dir_path_len -(strlen(entry->d_name) + 1) ] = 0;
     }
     dest_cmd->nbcmds = (uint32_t) count;
     return 0;
@@ -171,7 +189,11 @@ int extract_task(task_t *dest_task, char *dir_path)
                 closedir(dir);
                 return -1;
             }
-            int read_val = read(fd, &(dest_task->timings), sizeof(timing_t));
+            int timings[13];
+            int read_val = read(fd, timings, 13);
+            memcpy(&((dest_task->timings).minutes), timings,  8);
+            memcpy(&((dest_task->timings).hours), timings+8,  4);
+            memcpy(&((dest_task->timings).daysofweek), timings+12,  1);
             if (read_val < 0) {
                 closedir(dir);
                 return -1;
@@ -179,15 +201,18 @@ int extract_task(task_t *dest_task, char *dir_path)
             close(fd);
         }
 
-        struct stat st ;
-        stat(dir_path, &st);
-        if ( S_ISDIR(st.st_mode) ) {
+        if (!strcmp(entry->d_name,"cmd")) {
             /* We copy the current path because it will be modified in the recursion , 
             give the copy 64 more bytes for the size of the sub-dir file names (could be less)*/
-            char dir_path_copy[strlen(dir_path) + 64] ; 
+            
+            char * dir_path_copy = malloc(strlen(dir_path) + 64) ; 
+
             strcpy(dir_path_copy, dir_path);
             dest_task->command = (command_t *) malloc(sizeof(command_t));
+    
             extract_cmd(dest_task->command, dir_path_copy);
+
+            free(dir_path_copy);
         }
 
         /* Truncates the la part of the path */
@@ -222,6 +247,7 @@ int extract_all(task_t *task[], char *dir_path)
         strcpy(dir_path_copy, dir_path);
         
         task[i] = (task_t *) malloc(sizeof(task_t));
+        task[i]->id = atoi(entry->d_name);
         ret += extract_task( task[i] , dir_path_copy);
         
         free(dir_path_copy);
