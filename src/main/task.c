@@ -34,7 +34,9 @@ void print_task( task_t task){
     printBits(2, &(task.timings.hours));
     printBits(1, &(task.timings.daysofweek));
     printf("Command : \n" );
-    printf("  type : %d \n" , task.command->type);
+    char type[2];
+    memcpy(type, &(task.command->type), 2);
+    printf("  type : %s\n" , type);
     printf("  nbcmds : %d \n" , task.command->nbcmds);
     printf("  argv :\n");
     for( int i=0 ; i < task.command->args.argc ; i ++){
@@ -75,7 +77,7 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
         return -1;
     }
     struct dirent *entry;
-    int count;
+    int count = 0;
     while ((entry = readdir(dir))) {
 
         if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
@@ -89,8 +91,18 @@ int extract_cmd(command_t * dest_cmd, char * cmd_path) {
                 closedir(dir);
                 return -1;
             }
-            int read_val = read(fd, &(dest_cmd->args), sizeof(arguments_t));
-            //printf("%s", ((dest_cmd->args).argv)->data);
+            int * argc = &(dest_cmd->args.argc);
+            int read_val = read(fd, argc, 4);
+
+            dest_cmd->args.argv = (string_t *) malloc((*argc)*sizeof(string_t));
+            string_t * argv = dest_cmd->args.argv;
+
+            for(int i=0 ; i< *argc; i++){
+                read(fd, &((argv+i)->length), 4);
+                uint32_t str_len = (argv+i)->length;
+                (argv+i)->data = (uint8_t *) malloc(str_len);
+                read(fd, (argv+i)->data, str_len);
+            }
             if (read_val < 0) {
                 closedir(dir);
                 return -1;
@@ -199,22 +211,22 @@ int extract_all(task_t *task[], char *dir_path)
     }
     struct dirent *entry;
     int i = 0;
-    
     while ((entry = readdir(dir))) {
         if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
         
         strcat(dir_path , "/");
         strcat(dir_path , entry->d_name);
+        int dir_path_len = strlen(dir_path); 
         
-        char dir_path_copy[strlen(dir_path) + 64] ; 
+        char * dir_path_copy = malloc(dir_path_len+ 64); 
         strcpy(dir_path_copy, dir_path);
         
-        task[i] = (task_t *)malloc(sizeof(task_t));
+        task[i] = (task_t *) malloc(sizeof(task_t));
         ret += extract_task( task[i] , dir_path_copy);
         
-        /* Truncates the la part of the path */
-        int dir_path_len = strlen(dir_path); 
-        dir_path[dir_path_len -(strlen(entry->d_name) + 1) ] = 0;
+        free(dir_path_copy);
+        /* Truncates the last part of the path */
+        dir_path[dir_path_len - (strlen(entry->d_name) + 1) ] = 0;
 
         i++;
     }
