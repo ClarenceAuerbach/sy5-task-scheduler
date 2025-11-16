@@ -27,6 +27,6 @@ time_t next_exec_time(timing_t timing, time_t start_time);
 // Checks whether a given time_t is 'now'
 // Returns 1 it will take place within precision seconds
 // Otherwise 0
-int check_time(time_t, int precision);
+int check_time(time_t t, int precision);
 
 #endif
