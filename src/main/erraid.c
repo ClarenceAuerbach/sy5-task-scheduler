@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 #include "task.h"
 #define SI (('S'<<8)|'I')
@@ -56,30 +57,23 @@ int exec_command(command_t * com ){
 }
 
 /* Runs every due task and TODO sleeps until next task */
-int run(){
-    char * tasks_path = malloc(strlen(RUN_DIRECTORY)+6);
-    strcpy(tasks_path,RUN_DIRECTORY);
-    strcat(tasks_path, "/tasks");
+int run(char * tasks_path, task_array task_array){
     
-    int ret = 0;
-    task_t * * tasks;
-    int tasks_length = count_dir_size(tasks_path , 1);
-    tasks = (task_t * * ) malloc(tasks_length *sizeof(task_t *));
-    
-    if ((ret = extract_all(tasks, tasks_path))){
-        perror(" extract_all failed ");
-        return -1;
-    }
-    print_task( *(tasks[0]));
-    print_task( *(tasks[1]));
+    task_t * * tasks = task_array.tasks ; 
+    int tasks_length = task_array.length;
+
+    print_task(*(tasks[0]));
+    print_task(*(tasks[1]));
 
     int paths_length = strlen(tasks_path) + 16;
     char * stdout_path = malloc(paths_length);
     char * stderr_path = malloc(paths_length);
     char * times_exitc_path = malloc(paths_length);
+
+    int ret = 0;
     for(int i=0 ; i< tasks_length ; i++){
         /*  \/ check tasks[i]->timings */ 
-        if( 1 ){
+        if( check_time( (task_array.next_time)[i], 1) ){
             sprintf(stdout_path, "%s/%d/stdout", tasks_path, tasks[i]->id);
             sprintf(stderr_path, "%s/%d/stderr", tasks_path, tasks[i]->id);
             sprintf(times_exitc_path, "%s/%d/times-exitcodes", tasks_path, tasks[i]->id);
@@ -97,6 +91,7 @@ int run(){
             memset( stdout_path, 0, strlen(stdout_path));
             memset( stderr_path, 0, strlen(stderr_path));
             memset( times_exitc_path, 0, strlen(times_exitc_path));
+            
         }
 
     }
@@ -145,12 +140,31 @@ int main(int argc, char *argv[])
 
     change_rundir((argc==2)? argv[1]:"" );
     
+    char * tasks_path = malloc(strlen(RUN_DIRECTORY)+6);
+    strcpy(tasks_path,RUN_DIRECTORY);
+    strcat(tasks_path, "/tasks");
     
-    /* Main loop */
     int ret = 0;
+    task_t * * tasks;
+    int tasks_length = count_dir_size(tasks_path , 1);
+    tasks = (task_t * * ) malloc(tasks_length *sizeof(task_t *));
+
+    if ((ret = extract_all(tasks, tasks_path))){
+        perror(" extract_all failed ");
+        return -1;
+    }
+
+    time_t * times = malloc(tasks_length * sizeof(time_t));
+    time_t now = time(NULL);
+    for(int i=0; i < tasks_length ; i++){
+        times[i] = next_exec_time( tasks[i]->timings, now);
+    }
+    task_array task_array = { tasks_length, tasks, times};
+
+    /* Main loop */
     while(1)
     {  
-        ret += run();
+        ret += run( tasks_path, task_array);
         if( ret != 0){
             perror( " An Error occured during run() ");
             break;

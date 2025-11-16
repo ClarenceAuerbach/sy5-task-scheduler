@@ -42,6 +42,12 @@ typedef struct {
     timing_t timings;
 } task_t;
 
+typedef struct {
+    int length;
+    task_t * * tasks;
+    time_t * next_time;
+} task_array;
+
 void print_task(task_t task);
 
 int extract_all(task_t *task[], char *dir_path);

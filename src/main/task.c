@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
@@ -7,6 +9,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <limits.h>
+#include <endian.h>
 
 #include "task.h"
 
@@ -50,13 +53,6 @@ void print_task( task_t task){
     for(int i=0 ; i < (int) task.command->args.argc ; i++){
         print_string((task.command->args.argv)[i]);
     }
-}
-
-uint32_t swap_endian(uint32_t val) {
-    return ((val >> 24) & 0xff)      |  // Déplace octet 3 vers octet 0
-           ((val >> 8)  & 0xff00)    |  // Déplace octet 2 vers octet 1
-           ((val << 8)  & 0xff0000)  |  // Déplace octet 1 vers octet 2
-           ((val << 24) & 0xff000000);  // Déplace octet 0 vers octet 3
 }
 
 /* Counts the amount of files in a dir if only_count_dir = 0 ,
@@ -104,7 +100,7 @@ int extract_cmd(command_t * dest_cmd, char * dir_path) {
             }
             uint32_t * argc = &(dest_cmd->args.argc);
             int read_val = read(fd, argc, 4);
-            *argc = swap_endian(*argc);
+            *argc = be32toh(*argc);
 
             dest_cmd->args.argv = (string_t *) malloc((*argc)*sizeof(string_t));
             string_t * argv = dest_cmd->args.argv;
@@ -112,7 +108,7 @@ int extract_cmd(command_t * dest_cmd, char * dir_path) {
             for(int i=0 ; i< (int) *argc; i++){
                 read(fd, &((argv+i)->length), 4);
                 
-                uint32_t str_len = swap_endian((argv+i)->length);
+                uint32_t str_len = be32toh((argv+i)->length);
                 ((argv+i)->length) = str_len;
 
                 (argv+i)->data = (uint8_t *) malloc(str_len);
@@ -189,15 +185,25 @@ int extract_task(task_t *dest_task, char *dir_path)
                 closedir(dir);
                 return -1;
             }
-            int timings[13];
+            char timings[13];
             int read_val = read(fd, timings, 13);
-            memcpy(&((dest_task->timings).minutes), timings,  8);
-            memcpy(&((dest_task->timings).hours), timings+8,  4);
-            memcpy(&((dest_task->timings).daysofweek), timings+12,  1);
-            if (read_val < 0) {
+            if (read_val < 13) {
                 closedir(dir);
                 return -1;
             }
+            uint64_t *min;
+            uint32_t *hours;
+            uint8_t *days;
+            min = &((dest_task->timings).minutes);
+            hours = &((dest_task->timings).hours);
+            days = &((dest_task->timings).daysofweek);
+            memcpy(min, timings,  8);
+            memcpy(hours, timings+8,  4);
+            memcpy(days, timings+12,  1);
+
+            *min = be64toh(*min);
+            *hours = be32toh(*hours);
+            
             close(fd);
         }
 
