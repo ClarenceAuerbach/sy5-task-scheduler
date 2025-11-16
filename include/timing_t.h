@@ -25,7 +25,8 @@ int next_set_bit(uint64_t bitmap, int start, int end);
 time_t next_exec_time(timing_t);
 
 // Checks whether a given time_t is 'now'
-// Returns 1 it will take place within precision seconds
+// Returns 1 if it has taken place within precision seconds
+// (t <= now < t + precision)
 // Otherwise 0
 int check_time(time_t, int precision);
 
