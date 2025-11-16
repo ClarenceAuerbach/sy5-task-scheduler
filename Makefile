@@ -51,8 +51,8 @@ distclean:
 	rm -rf bin obj
 
 # Won't be permanent, removed once we have tadmor
-run : $(TARGET)
-	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid $(USER)
+run : bin/erraid
+	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid ./src/test/data/exemple-arborescence-1/tmp-username-erraid
 
 kill : 
 	kill $$(cat /tmp/$(USER)/erraid/erraid_pid.pid) 2>/dev/null || true
