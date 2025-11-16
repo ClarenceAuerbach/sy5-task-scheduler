@@ -2,22 +2,12 @@
 #define TASK_H
 
 #include <stdint.h>
+#include <timing_t.h>
 
 typedef struct {
     uint32_t length;
     uint8_t *data;
 } string_t;
-
-/* bitmap representing what times a command should be run at
- * if the 8th and 16th hours are marked,
- * and the first (Monday) and fifth (Friday) days are marked
- * then it'll run Monday 8:00, Monday 16:00, Friday 8:00, Friday 16:00
- */
-typedef struct {
-    uint64_t minutes;
-    uint32_t hours;
-    uint8_t daysofweek;
-} timing_t;
 
 /* argv[0] contains the name of the command to be called
  * it must exist and be nonempty
