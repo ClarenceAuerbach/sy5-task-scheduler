@@ -20,10 +20,8 @@ int next_set_bit(uint64_t bitmap, int start, int end) {
 // Returns -1 on error:
 // Either timing_t describes no valid time (one of the fields is null)
 // or the next timing overflows time_t
-time_t next_exec_time(timing_t timing) {
-    time_t now;
-    time(&now);
-    struct tm *src = localtime(&now);
+time_t next_exec_time(timing_t timing, time_t start_time) {
+    struct tm *src = localtime(&start_time);
     if (!src) return -1; // localtime error
     // Copy. src is a pointer to volatile static memory
     struct tm tm = *src;

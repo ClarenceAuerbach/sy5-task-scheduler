@@ -22,12 +22,12 @@ int next_set_bit(uint64_t bitmap, int start, int end);
 // Returns -1 on error:
 // Either timing_t describes no valid time (one of the fields is null)
 //  or the next timing overflows time_t
-time_t next_exec_time(timing_t);
+time_t next_exec_time(timing_t timing, time_t start_time);
 
 // Checks whether a given time_t is 'now'
 // Returns 1 if it has taken place within precision seconds
 // (t <= now < t + precision)
 // Otherwise 0
-int check_time(time_t, int precision);
+int check_time(time_t t, int precision);
 
 #endif
