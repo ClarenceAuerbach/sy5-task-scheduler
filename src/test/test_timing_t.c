@@ -4,6 +4,16 @@
 #include "timing_t.h"
 
 int main() {
+    // ~~~~~ Test check_time ~~~~~
+    time_t now;
+    time(&now);
+    time_t then = now - 5;
+    assert(check_time(then, 1) == 0);
+    then += 5; // Should take less than a second to execute
+    assert(check_time(then, 1) == 1);
+    then += 6;
+    assert(check_time(then, 5) == 0);
+
     // ~~~~~ Test where nothing should work ~~~~~
     {
         timing_t timing = {
