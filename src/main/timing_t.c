@@ -1,10 +1,11 @@
-#include <stdio.h>
 #include <time.h>
+#include <stdio.h>
 
 #include "timing_t.h"
 
-// Helper function for next_exec_time
-// Finds the next bit set to 1, starting from start
+/* Helper function for next_exec_time
+ Finds the next bit set to 1, starting from start
+ */
 int next_set_bit(uint64_t bitmap, int start, int end) {
     for (int i = start; i < end; i++) {
         if ((bitmap >> i) & 1) {
@@ -14,13 +15,15 @@ int next_set_bit(uint64_t bitmap, int start, int end) {
     return -1; // No set bit found
 }
 
-// Finds the next time_t described by timing_t
-// Important note:
-// time_t mktime(struct tm) will take the struct tm, renormalise it, and return the time_t equivalent
-// Returns -1 on error:
-// Either timing_t describes no valid time (one of the fields is null)
-// or the next timing overflows time_t
+/* Finds the next time_t described by timing_t
+ Important note:
+ time_t mktime(struct tm) will take the struct tm, renormalise it, and return the time_t equivalent
+ Returns -1 on error:
+ Either timing_t describes no valid time (one of the fields is null)
+ or the next timing overflows time_t
+*/
 time_t next_exec_time(timing_t timing, time_t start_time) {
+    start_time++;
     struct tm *src = localtime(&start_time);
     if (!src) return -1; // localtime error
     // Copy. src is a pointer to volatile static memory
@@ -60,15 +63,26 @@ time_t next_exec_time(timing_t timing, time_t start_time) {
             continue;
         }
         tm.tm_min = next_min;
-        tm.tm_sec = 0;
-        return mktime(&tm);
+
+        if (tm.tm_sec != 0) {
+            tm.tm_min++;
+            tm.tm_sec = 0;
+        }
+
+        time_t res = mktime(&tm);
+        // If the next_exec_time of timing_t is the current time, it will fall through all checks
+        // So an explicit check is needed
+        // if (res == start_time) res++;
+
+        return res;
     }
 }
 
-// Checks whether a given time_t is 'now'
-// Returns 1 if it has taken place within precision seconds
-// (t <= now < t + precision)
-// Otherwise 0
+/* Checks whether a given time_t is 'now'
+ Returns 1 if it has taken place within precision seconds
+ (t <= now < t + precision)
+ Otherwise 0
+*/
 int check_time(time_t t, int precision) {
     time_t now;
     time(&now);
@@ -79,6 +93,17 @@ int check_time(time_t t, int precision) {
     if (diff < precision) // t <= now < t+precision
         return 1;
     return 0; // Too late 
+}
+
+time_t min( time_t * times , int length){
+    if(length == 0) return 0;
+    time_t min = times[0];
+    for(int i =0; i<length ; i++){
+        if( times[i]<min){
+            min = times[i];
+        }
+    }
+    return min;
 }
 
 

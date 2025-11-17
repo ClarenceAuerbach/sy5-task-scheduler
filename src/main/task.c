@@ -44,10 +44,11 @@ void print_task( task_t task){
     printBits(2, &(task.timings.hours));
     printBits(1, &(task.timings.daysofweek));
     printf("Command : \n" );
-    char type[2];
+    char type[3];
     memcpy(type, &(task.command->type), 2);
-    printf("  type : %s\n" , type);
-    printf("  nbcmds : %d \n" , task.command->nbcmds);
+    type[2] = '\0';
+    printf("  type : %s\n", type);
+    printf("  nbcmds : %d \n", task.command->nbcmds);
     printf("  argv :\n");
     
     for(int i=0 ; i < (int) task.command->args.argc ; i++){
@@ -134,6 +135,7 @@ int extract_cmd(command_t * dest_cmd, char * dir_path) {
                 closedir(dir);
                 return -1;
             }
+            dest_cmd->type = be16toh(dest_cmd->type);
             close(fd);
         }
 

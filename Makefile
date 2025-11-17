@@ -55,5 +55,7 @@ run : bin/erraid
 	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid ./src/test/data/exemple-arborescence-1/tmp-username-erraid
 
 kill : 
-	kill $$(cat /tmp/$(USER)/erraid/erraid_pid.pid) 2>/dev/null || true
-	rm -f /tmp/$(USER)/erraid/erraid_pid.pid
+	@PID=$$(ps aux | grep './bin/erraid' | awk '{print $$2}'); \
+	if [ -n "$$PID" ]; then \
+		kill $$PID ; \
+	fi
