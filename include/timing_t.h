@@ -30,4 +30,6 @@ time_t next_exec_time(timing_t timing, time_t start_time);
 // Otherwise 0
 int check_time(time_t t, int precision);
 
+time_t min( time_t * times , int length);
+
 #endif
