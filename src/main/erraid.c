@@ -7,11 +7,16 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <limits.h>
+
 #include "task.h"
+#include "str_util.h"
+
 #define SI (('S'<<8)|'I')
 #define SQ (('S'<<8)|'Q')
 
-char RUN_DIRECTORY[1024] ;
+#define PATH_MAX 1024
+char RUN_DIRECTORY[PATH_MAX];
 int CURFD_OUT, CURFD_ERR, CURFD_EXC;
 
 /* Execute a simple command of type SI */
@@ -19,23 +24,22 @@ int exec_simple_command(command_t *com){
     if (com->type == SI){
         switch (fork()){
             case -1:
-                perror ("error when intializing processus");
+                perror ("Error when intializing process");
                 return -1;
-            case 0: 
-            {
+            case 0: {
                 char **argv = malloc((com->args.argc + 1) * sizeof(char *));
                 for (int i = 0; i < (int) com->args.argc; i++){
                     argv[i] = (char *)com->args.argv[i].data;
                 }
                 argv[com->args.argc] = NULL; 
-                
+
                 dup2( CURFD_OUT , STDOUT_FILENO);
                 dup2( CURFD_ERR, STDERR_FILENO);
-                
+
                 execvp(argv[0], argv);
 
                 perror("execvp failed");
-                _exit(1);
+                exit(1);
             }
             default: break;
         }
@@ -57,54 +61,72 @@ int exec_command(command_t * com ){
 }
 
 /* Runs every due task and TODO sleeps until next task */
-int run(char * tasks_path, task_array task_array){
-    
-    task_t * * tasks = task_array.tasks ; 
-    int tasks_length = task_array.length;
+int run(char *tasks_path, task_array task_array){
+    int ret = 1;
+    time_t now;
+    time_t min_timing;
 
-    print_task(*(tasks[0]));
-    print_task(*(tasks[1]));
+    print_task(*(task_array.tasks[0]));
+    print_task(*(task_array.tasks[1]));
 
     int paths_length = strlen(tasks_path) + 16;
     char * stdout_path = malloc(paths_length);
     char * stderr_path = malloc(paths_length);
     char * times_exitc_path = malloc(paths_length);
+    
+    if (task_array.length == 0) return -1;
+    while(1) {
+        // Look for soonest task to be executed
+        size_t index = 0;
+        min_timing = task_array.next_time[0];
 
-    int ret = 0;
-    for(int i=0 ; i< tasks_length ; i++){
-        /*  \/ check tasks[i]->timings */ 
-        if( check_time( (task_array.next_time)[i], 1) ){
-            sprintf(stdout_path, "%s/%d/stdout", tasks_path, tasks[i]->id);
-            sprintf(stderr_path, "%s/%d/stderr", tasks_path, tasks[i]->id);
-            sprintf(times_exitc_path, "%s/%d/times-exitcodes", tasks_path, tasks[i]->id);
-
-            CURFD_OUT = open( stdout_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU);
-            CURFD_ERR = open( stderr_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU);
-            CURFD_EXC = open( times_exitc_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU);
-
-            /* TODO how to write in times exitcodes ?*/
-            ret = exec_command(tasks[i]->command);
-            close(CURFD_OUT);
-            close(CURFD_ERR);
-            close(CURFD_EXC);
-            
-            memset( stdout_path, 0, strlen(stdout_path));
-            memset( stderr_path, 0, strlen(stderr_path));
-            memset( times_exitc_path, 0, strlen(times_exitc_path));
-            
+        for (int i = 0; i < task_array.length; i++) {
+            if (task_array.next_time[i] < min_timing) {
+                index = i;
+                min_timing = task_array.next_time[i];
+            }
         }
+        time_t now = time(NULL);
+        if (!check_time(min_timing, 5)) {
+            if (min_timing <= now) { // The task was a long time ago (>5 seconds)
+                perror("Missed the execution of a task");
+            }
+            break; // Soonest task is still in the future.
+        }
+        // Execute the task
+        sprintf(stdout_path, "%s/%d/stdout", tasks_path, task_array.tasks[index]->id);
+        sprintf(stderr_path, "%s/%d/stderr", tasks_path, task_array.tasks[index]->id);
+        sprintf(times_exitc_path, "%s/%d/times-exitcodes", tasks_path, task_array.tasks[index]->id);
 
+        CURFD_OUT = open( stdout_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU);
+        CURFD_ERR = open( stderr_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU);
+        CURFD_EXC = open( times_exitc_path, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU);
+
+        /* TODO how to write in times exitcodes ?*/
+        ret = exec_command(task_array.tasks[index]->command);
+        close(CURFD_OUT);
+        close(CURFD_ERR);
+        close(CURFD_EXC);
+        
+        memset( stdout_path, 0, strlen(stdout_path));
+        memset( stderr_path, 0, strlen(stderr_path));
+        memset( times_exitc_path, 0, strlen(times_exitc_path));
+
+        // Update its next_time
+        // (Works because its previous time was in the past, as dictated by check_time)
+        now = time(NULL);
+        task_array.next_time[index] = next_exec_time(task_array.tasks[index]->timings, now);
     }
-
-    sleep(60);
+    now = time(NULL); // making sure now is updated
+    sleep(min_timing-now-1); // Sleep by a little less than the time until next task execution
     return ret;
 }
 
 void change_rundir(char * newpath){
     /* Instantiating RUN_DIRECTORY with default directory */
-    if(strlen(newpath)==0){
-        snprintf(RUN_DIRECTORY, strlen(getenv("USER"))+19,"/tmp/%s/erraid",  getenv("USER"));
-    }else{
+    if(newpath == NULL || strlen(newpath)==0) {
+        snprintf(RUN_DIRECTORY, PATH_MAX,"/tmp/%s/erraid",  getenv("USER"));
+    } else {
         strcpy(RUN_DIRECTORY, newpath);
     } 
     /* Writing the pid in a file for make kill */
@@ -123,9 +145,10 @@ void change_rundir(char * newpath){
 
 int main(int argc, char *argv[])
 {
+    // TODO must accept no arguments
     if( argc > 2 ) {
-        printf( "Usage : use ´make run´ or pass `run directory path` as an argument\n" );
-        exit( EXIT_SUCCESS );
+        printf( "Usage : use `make run` or pass `run_directory` as an argument\n" );
+        exit(0);
     }
 
     /* Double fork() keeping the grand-child, exists in a new session id */
@@ -164,7 +187,7 @@ int main(int argc, char *argv[])
     /* Main loop */
     while(1)
     {  
-        ret += run( tasks_path, task_array);
+        ret += run( tasks_path, task_array); // Careful to check run() == -1: no task executed
         if( ret != 0){
             perror( " An Error occured during run() ");
             break;
