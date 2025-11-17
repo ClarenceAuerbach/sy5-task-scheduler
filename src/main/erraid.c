@@ -32,18 +32,19 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
                 perror ("Error when intializing process");
                 return -1;
             case 0: {
-                char **argv = malloc((com->args.argc + 1) * sizeof(char *));
+                char **argv = malloc((com->args.argc) * 4);
                 for (int i = 0; i < (int) com->args.argc; i++){
-                    argv[i] = (char *)com->args.argv[i].data;
+                    argv[i] = malloc((com->args.argv[i].length + 1) * sizeof(char));
+                    memcpy(argv[i], com->args.argv[i].data, com->args.argv[i].length);
+                    argv[i][com->args.argv[i].length] = '\0';
                 }
-                argv[com->args.argc] = NULL; 
+                
 
-                //dup2(fd_out, STDOUT_FILENO);
-                //close(fd_out);
-                //dup2(fd_err, STDERR_FILENO);
-                //close(fd_err);
+                dup2(fd_out, STDOUT_FILENO);
+                close(fd_out);
+                dup2(fd_err, STDERR_FILENO);
+                close(fd_err);
 
-                printf("%s,%s,%s\n", argv[0], argv[1], argv[2]);
                 execvp(argv[0], argv);
 
                 perror("execvp failed");
@@ -129,9 +130,9 @@ int run(char *tasks_path, task_array task_array){
 
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
-        // long ms = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-        // write(fd_exc, &ret, 4);
-        // write(fd_exc, &ms, 6);
+        long ms = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+        write(fd_exc, &ret, 4);
+        write(fd_exc, &ms, 6);
         
         close(fd_exc);
         close(fd_out);
