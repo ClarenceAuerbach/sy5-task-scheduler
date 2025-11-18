@@ -82,21 +82,27 @@ int exec_command(command_t * com, int fd_out, int fd_err){
 
 /* Runs every due task and TODO sleeps until next task */
 int run(char *tasks_path, task_array task_array){
-    printf("in run\n");
+    int ret = -1;
+    char *stdout_path = NULL;
+    char *stderr_path = NULL;
+    char *times_exitc_path = NULL;
+    int fd_out = -1, fd_err = -1, fd_exc = -1;
+
     if (task_array.length == 0) return -1;
 
-    int ret = 0;
     time_t now;
     time_t min_timing;
 
     print_task(*(task_array.tasks[0]));
 
     int paths_length = strlen(tasks_path) + 16;
-    char * stdout_path = malloc(paths_length);
-    char * stderr_path = malloc(paths_length);
-    char * times_exitc_path = malloc(paths_length);
+    stdout_path = malloc(paths_length);
+    if (!stdout_path) goto cleanup;
+    stderr_path = malloc(paths_length);
+    if (!stderr_path) goto cleanup;
+    times_exitc_path = malloc(paths_length);
+    if (!times_exitc_path) goto cleanup;
 
-    int fd_out, fd_err, fd_exc;
 
     while(1) {
         printf("Entering while\n");
@@ -126,8 +132,11 @@ int run(char *tasks_path, task_array task_array){
         sprintf(times_exitc_path, "%s/%d/times-exitcodes", tasks_path, task_array.tasks[index]->id);
 
         fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, S_IRWXU);
+        if (fd_out == -1) goto cleanup;
         fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, S_IRWXU);
+        if (fd_err == -1) goto cleanup;
         fd_exc = open(times_exitc_path, O_WRONLY | O_CREAT | O_APPEND , S_IRWXU);
+        if (fd_exc == -1) goto cleanup;
 
         printf("\033[31mStarting execution!\033[0m\n");
         ret = exec_command(task_array.tasks[index]->command, fd_out, fd_err);
@@ -155,9 +164,14 @@ int run(char *tasks_path, task_array task_array){
     printf("Sleep time: %ld\n", min_timing - now);
     sleep(min_timing - now); // Sleep by a little less than the time until next task execution
 
-    free(stdout_path);
-    free(stderr_path);
-    free(times_exitc_path);
+    ret = 0;
+cleanup:
+    if (fd_out >= 0) close(fd_out);
+    if (fd_err >= 0) close(fd_err);
+    if (fd_exc >= 0) close(fd_exc);
+    if (stdout_path) free(stdout_path);
+    if (stderr_path) free(stderr_path);
+    if (times_exitc_path) free(times_exitc_path);
     return ret;
 }
 
@@ -170,18 +184,19 @@ void change_rundir(char * newpath){
     } 
 }
 
-int main(int argc, char *argv[])
-{
-    // TODO must accept no arguments
+int main(int argc, char *argv[]) {
+    char *tasks_path = NULL;
+    task_t **tasks = NULL;
+    time_t *times = NULL;
     if( argc > 2 ) {
-        printf( "Usage : use `make run` or pass `run_directory` as an argument\n" );
+        printf("Pass at most one argument: run_directory\n");
         exit(0);
     }
 
     /* Double fork() keeping the grand-child, exists in a new session id */
     pid_t child_pid = fork(); 
     assert(child_pid != -1);
-    if( child_pid > 0 ) exit(EXIT_SUCCESS); 
+    if(child_pid > 0) exit(EXIT_SUCCESS); 
     
     setsid();
     child_pid = fork(); 
@@ -190,37 +205,44 @@ int main(int argc, char *argv[])
 
     change_rundir((argc==2) ? argv[1] : "");
 
-    char *tasks_path = malloc(strlen(RUN_DIRECTORY)+6);
-    strcpy(tasks_path,RUN_DIRECTORY);
+    tasks_path = malloc(strlen(RUN_DIRECTORY)+6);
+    if (!tasks_path) goto cleanup;
+    strcpy(tasks_path, RUN_DIRECTORY);
     strcat(tasks_path, "/tasks");
 
-    int ret = 0;
-    task_t **tasks;
-    int tasks_length = count_dir_size(tasks_path , 1);
-    tasks = (task_t **) malloc(tasks_length *sizeof(task_t *));
+    int task_count = count_dir_size(tasks_path , 1);
+    tasks = malloc(task_count * sizeof(task_t *));
+    if (!tasks) goto cleanup;
     
-    if ((ret = extract_all(tasks, tasks_path))){
+    if (extract_all(tasks, tasks_path)){
         perror("Extract_all failed");
-        return -1;
+        goto cleanup;
     }
 
-    time_t *times = malloc(tasks_length * sizeof(time_t));
-    time_t now = time(NULL);
+    times = malloc(task_count * sizeof(time_t));
+    if (!times) goto cleanup;
 
-    for(int i=0; i < tasks_length ; i++){
+    time_t now = time(NULL);
+    for(int i = 0; i < task_count; i++) {
         times[i] = next_exec_time(tasks[i]->timings, now);
     }
-    task_array task_array = {tasks_length, tasks, times};
+    task_array task_array = {task_count, tasks, times};
 
     /* Main loop */
+    int ret = 0;
     while(1) {
         printf("Entered main loop\n");
         ret += run(tasks_path, task_array);
         printf("return value: %d\n", ret);
         if(ret != 0){
             perror("An Error occured during run()");
-            break;
+            goto cleanup;
         }
     }
-    return ret;
+    
+    // Should only exit on error
+cleanup:
+    if (tasks_path) free(tasks_path);
+    if (tasks) free(tasks);
+    if (times) free(times);
 }
