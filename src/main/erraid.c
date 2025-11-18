@@ -44,7 +44,10 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
                 close(fd_out);
                 dup2(fd_err, STDERR_FILENO);
                 close(fd_err);
-
+                
+                for (uint32_t i = 0; i <= com->args.argc; i++) {
+                    printf("arg #%d: %s\n", i, argv[i]);
+                }
                 execvp(argv[0], argv);
 
                 perror("execvp failed");
@@ -69,7 +72,7 @@ int exec_command(command_t * com, int fd_out, int fd_err){
     printf("In exec_command\n");
     if (com->type == SQ){
         for (unsigned int i=0; i<com->nbcmds; i++){
-            ret = exec_simple_command(&com->cmd[i], fd_out, fd_err);
+            ret = exec_command(&com->cmd[i], fd_out, fd_err);
         }
     } else if (com->type == SI){
         ret = exec_simple_command(com, fd_out, fd_err);
@@ -79,6 +82,7 @@ int exec_command(command_t * com, int fd_out, int fd_err){
 
 /* Runs every due task and TODO sleeps until next task */
 int run(char *tasks_path, task_array task_array){
+    printf("in run\n");
     if (task_array.length == 0) return -1;
 
     int ret = 0;
@@ -86,7 +90,6 @@ int run(char *tasks_path, task_array task_array){
     time_t min_timing;
 
     print_task(*(task_array.tasks[0]));
-    print_task(*(task_array.tasks[1]));
 
     int paths_length = strlen(tasks_path) + 16;
     char * stdout_path = malloc(paths_length);
@@ -96,6 +99,7 @@ int run(char *tasks_path, task_array task_array){
     int fd_out, fd_err, fd_exc;
 
     while(1) {
+        printf("Entering while\n");
         // Look for soonest task to be executed
         size_t index = 0;
         min_timing = task_array.next_time[0];
@@ -121,8 +125,8 @@ int run(char *tasks_path, task_array task_array){
         sprintf(stderr_path, "%s/%d/stderr", tasks_path, task_array.tasks[index]->id);
         sprintf(times_exitc_path, "%s/%d/times-exitcodes", tasks_path, task_array.tasks[index]->id);
 
-        fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU);
-        fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_TRUNC , S_IRWXU);
+        fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, S_IRWXU);
+        fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, S_IRWXU);
         fd_exc = open(times_exitc_path, O_WRONLY | O_CREAT | O_APPEND , S_IRWXU);
 
         printf("\033[31mStarting execution!\033[0m\n");
@@ -212,7 +216,7 @@ int main(int argc, char *argv[])
     while(1) {
         printf("Entered main loop\n");
         ret += run(tasks_path, task_array);
-        printf("%d\n", ret);
+        printf("return value: %d\n", ret);
         if(ret != 0){
             perror("An Error occured during run()");
             break;

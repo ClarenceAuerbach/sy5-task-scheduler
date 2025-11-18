@@ -50,7 +50,7 @@ void print_task( task_t task){
     printf("  type : %s\n", type);
     printf("  nbcmds : %d \n", task.command->nbcmds);
     printf("  argv :\n");
-    
+
     for(int i=0 ; i < (int) task.command->args.argc ; i++){
         print_string((task.command->args.argv)[i]);
     }
