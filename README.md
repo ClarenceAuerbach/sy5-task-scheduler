@@ -1,6 +1,6 @@
 # SY5-Task-Scheduler
 
-## cran (name to be determined)
+## Cranberry
 
 ## Description
 A daemon-client pair allowing a user to automate the **periodic execution of tasks** at specified times, similar to the [cron](https://en.wikipedia.org/wiki/Cron) utility.

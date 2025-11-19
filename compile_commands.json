@@ -1,0 +1,18 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-std=c17",
+      "-Iinclude",
+      "-c",
+      "-o",
+      "obj/main/erraid.o",
+      "src/main/erraid.c"
+    ],
+    "directory": "/home/louis/school/s5/sy5/sy5-task-scheduler",
+    "file": "/home/louis/school/s5/sy5/sy5-task-scheduler/src/main/erraid.c",
+    "output": "/home/louis/school/s5/sy5/sy5-task-scheduler/obj/main/erraid.o"
+  }
+]
