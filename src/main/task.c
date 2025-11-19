@@ -152,8 +152,9 @@ int extract_cmd(command_t * dest_cmd, char * dir_path) {
             give the copy 64 more bytes for the size of the sub-dir file names (could be less)*/
             char dir_path_copy[strlen(dir_path)+ 64] ; 
             strcpy(dir_path_copy, dir_path);
+            int i = atoi(entry->d_name);
 
-            extract_cmd((dest_cmd->cmd) + count , dir_path_copy);
+            extract_cmd((dest_cmd->cmd) + i , dir_path_copy);
 
             count ++;
         }

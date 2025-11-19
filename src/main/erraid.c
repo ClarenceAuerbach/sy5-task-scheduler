@@ -23,7 +23,6 @@ char RUN_DIRECTORY[PATH_MAX];
 
 /* Execute a simple command of type SI */
 int exec_simple_command(command_t *com, int fd_out, int fd_err){
-    printf("Simple command\n");
     if (com->type == SI){
         int pid;
         int status;
@@ -32,22 +31,19 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
                 perror ("Error when intializing process");
                 return -1;
             case 0: {
-                char **argv = malloc((com->args.argc) * 4);
+                char **argv = malloc((com->args.argc + 1) * 4);
                 for (int i = 0; i < (int) com->args.argc; i++){
                     argv[i] = malloc((com->args.argv[i].length + 1) * sizeof(char));
                     memcpy(argv[i], com->args.argv[i].data, com->args.argv[i].length);
                     argv[i][com->args.argv[i].length] = '\0';
                 }
+                argv[com->args.argc] = NULL; 
                 
-
                 dup2(fd_out, STDOUT_FILENO);
                 close(fd_out);
                 dup2(fd_err, STDERR_FILENO);
                 close(fd_err);
                 
-                for (uint32_t i = 0; i <= com->args.argc; i++) {
-                    printf("arg #%d: %s\n", i, argv[i]);
-                }
                 execvp(argv[0], argv);
 
                 perror("execvp failed");
@@ -69,7 +65,6 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
 /* TODO Execute commands of every type correctly */
 int exec_command(command_t * com, int fd_out, int fd_err){
     int ret = 0;
-    printf("In exec_command\n");
     if (com->type == SQ){
         for (unsigned int i=0; i<com->nbcmds; i++){
             ret = exec_command(&com->cmd[i], fd_out, fd_err);
@@ -80,16 +75,47 @@ int exec_command(command_t * com, int fd_out, int fd_err){
     return ret;
 }
 
+void print_exc(char *path) {
+    int fd = open(path, O_RDONLY);
+    if (fd == -1) {
+        perror("Erreur ouverture fichier");
+        return ;
+    }
+    while(1){
+        int32_t ret;
+        if (read(fd, &ret, 4) != 4) {
+            close(fd);
+            return ;
+        }
+        unsigned char buf[6];
+        if (read(fd, buf, 6) != 6) {
+            close(fd);
+            return;
+        }
+        long ms = 0;
+        for (int i = 0; i < 6; i++) {
+            ms |= ((long)buf[i]) << (i * 8);
+        }
+
+        long seconds = ms / 1000;
+        long milliseconds = ms % 1000;
+        time_t time_sec = (time_t)seconds;
+        struct tm *tm_info = localtime(&time_sec);
+        
+        char time_str[64];
+        strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm_info);
+        
+        printf("%d  %s.%03ld\n", ret,time_str, milliseconds);
+    }    
+}
+
 /* Runs every due task and TODO sleeps until next task */
 int run(char *tasks_path, task_array task_array){
-    printf("in run\n");
     if (task_array.length == 0) return -1;
 
     int ret = 0;
     time_t now;
     time_t min_timing;
-
-    print_task(*(task_array.tasks[0]));
 
     int paths_length = strlen(tasks_path) + 16;
     char * stdout_path = malloc(paths_length);
@@ -99,7 +125,6 @@ int run(char *tasks_path, task_array task_array){
     int fd_out, fd_err, fd_exc;
 
     while(1) {
-        printf("Entering while\n");
         // Look for soonest task to be executed
         size_t index = 0;
         min_timing = task_array.next_time[0];
@@ -113,9 +138,8 @@ int run(char *tasks_path, task_array task_array){
 
         // Check if the soonest task must be executed
         now = time(NULL);
-        printf("now: %ld, min_timing: %ld\n", now, min_timing);
         if (min_timing > now) {
-            printf("\033[32mBreaking out of while loop\033[0m\n");
+            printf("\033[32mBreaking out of execution loop\033[0m\n");
             break; // Soonest task is still in the future.
         }
         
@@ -137,6 +161,8 @@ int run(char *tasks_path, task_array task_array){
         long ms = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
         write(fd_exc, &ret, 4);
         write(fd_exc, &ms, 6);
+
+        print_exc( times_exitc_path);
         
         close(fd_exc);
         close(fd_out);
@@ -152,7 +178,7 @@ int run(char *tasks_path, task_array task_array){
         task_array.next_time[index] = next_exec_time(task_array.tasks[index]->timings, now);
     }
     now = time(NULL); // making sure now is updated
-    printf("Sleep time: %ld\n", min_timing - now);
+    printf("Sleep time until next task: %lds\n", min_timing - now);
     sleep(min_timing - now); // Sleep by a little less than the time until next task execution
 
     free(stdout_path);
@@ -214,9 +240,7 @@ int main(int argc, char *argv[])
 
     /* Main loop */
     while(1) {
-        printf("Entered main loop\n");
         ret += run(tasks_path, task_array);
-        printf("return value: %d\n", ret);
         if(ret != 0){
             perror("An Error occured during run()");
             break;
