@@ -139,7 +139,7 @@ int run(char *tasks_path, task_array task_array){
         // Check if the soonest task must be executed
         now = time(NULL);
         if (min_timing > now) {
-            printf("\033[32mBreaking out of execution loop\033[0m\n");
+            // DEBUG printf("\033[32mBreaking out of execution loop\033[0m\n");
             break; // Soonest task is still in the future.
         }
         
@@ -153,7 +153,7 @@ int run(char *tasks_path, task_array task_array){
         fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, S_IRWXU);
         fd_exc = open(times_exitc_path, O_WRONLY | O_CREAT | O_APPEND , S_IRWXU);
 
-        printf("\033[31mStarting execution!\033[0m\n");
+        // DEBUG printf("\033[31mStarting execution!\033[0m\n");
         ret = exec_command(task_array.tasks[index]->command, fd_out, fd_err);
 
         struct timespec ts;
@@ -162,7 +162,7 @@ int run(char *tasks_path, task_array task_array){
         write(fd_exc, &ret, 4);
         write(fd_exc, &ms, 6);
 
-        print_exc( times_exitc_path);
+        // DEBUG print_exc( times_exitc_path);
         
         close(fd_exc);
         close(fd_out);
@@ -178,7 +178,7 @@ int run(char *tasks_path, task_array task_array){
         task_array.next_time[index] = next_exec_time(task_array.tasks[index]->timings, now);
     }
     now = time(NULL); // making sure now is updated
-    printf("Sleep time until next task: %lds\n", min_timing - now);
+    // DEBUG printf("Sleep time until next task: %lds\n", min_timing - now);
     sleep(min_timing - now); // Sleep by a little less than the time until next task execution
 
     free(stdout_path);
