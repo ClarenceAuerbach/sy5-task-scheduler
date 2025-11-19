@@ -12,12 +12,13 @@
 #include <unistd.h>
 #include <limits.h>
 #include <sys/wait.h>
+#include <endian.h>
 
 #include "task.h"
 #include "timing_t.h"
 
-#define SI (('S'<<8)|'I')
-#define SQ (('S'<<8)|'Q')
+#define SI (('I'<<8)|'S')
+#define SQ (('Q'<<8)|'S')
 
 char RUN_DIRECTORY[PATH_MAX];
 
@@ -66,10 +67,13 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
 int exec_command(command_t * com, int fd_out, int fd_err){
     int ret = 0;
     if (com->type == SQ){
+        printf("\033[35mSequential task started\033[0m\n");
         for (unsigned int i=0; i<com->nbcmds; i++){
+            printf("executing one command\n");
             ret = exec_command(&com->cmd[i], fd_out, fd_err);
         }
     } else if (com->type == SI){
+        printf("Simple task\n");
         ret = exec_simple_command(com, fd_out, fd_err);
     }
     return ret;
@@ -82,31 +86,21 @@ void print_exc(char *path) {
         return ;
     }
     while(1){
-        int32_t ret;
-        if (read(fd, &ret, 4) != 4) {
-            close(fd);
-            return ;
-        }
-        unsigned char buf[6];
-        if (read(fd, buf, 6) != 6) {
+        time_t time = 0;
+        if (read(fd, &time, 8) != 8) {
             close(fd);
             return;
         }
-        long ms = 0;
-        for (int i = 0; i < 6; i++) {
-            ms |= ((long)buf[i]) << (i * 8);
+        time = be64toh(time);
+        uint16_t ret;
+        if (read(fd, &ret, 2) != 2) {
+            close(fd);
+            return ;
         }
+        ret = be16toh(ret);
 
-        long seconds = ms / 1000;
-        long milliseconds = ms % 1000;
-        time_t time_sec = (time_t)seconds;
-        struct tm *tm_info = localtime(&time_sec);
-        
-        char time_str[64];
-        strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", tm_info);
-        
-        printf("%d  %s.%03ld\n", ret,time_str, milliseconds);
-    }    
+        printf("%s: %d\n", ctime(&time), ret);
+    }
 }
 
 /* Runs every due task and TODO sleeps until next task */
@@ -146,7 +140,8 @@ int run(char *tasks_path, task_array task_array){
         // Check if the soonest task must be executed
         now = time(NULL);
         if (min_timing > now) {
-            // DEBUG printf("\033[32mBreaking out of execution loop\033[0m\n");
+            // DEBUG
+            printf("\033[32mBreaking out of execution loop\033[0m\n");
             break; // Soonest task is still in the future.
         }
         
@@ -163,16 +158,24 @@ int run(char *tasks_path, task_array task_array){
         fd_exc = open(times_exitc_path, O_WRONLY | O_CREAT | O_APPEND , S_IRWXU);
         if (fd_exc == -1) goto cleanup;
 
-        // DEBUG printf("\033[31mStarting execution!\033[0m\n");
+        // DEBUG
+        printf("\033[31mStarting execution!\033[0m\n");
         ret = exec_command(task_array.tasks[index]->command, fd_out, fd_err);
 
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
-        long ms = ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
-        write(fd_exc, &ret, 4);
-        write(fd_exc, &ms, 6);
+        time_t now = time(NULL);
+        now = htobe64(now);
+        uint16_t beret = htobe16(ret);
+        if(write(fd_exc, &now, 8) != 8) {
+            printf("Write failed");
+            goto cleanup;
+        }
+        if(write(fd_exc, &beret, 2) != 2) {
+            printf("Write failed");
+            goto cleanup;
+        }
 
-        // DEBUG print_exc( times_exitc_path);
+        // DEBUG 
+        print_exc( times_exitc_path);
         
         close(fd_exc);
         close(fd_out);
@@ -188,7 +191,8 @@ int run(char *tasks_path, task_array task_array){
         task_array.next_time[index] = next_exec_time(task_array.tasks[index]->timings, now);
     }
     now = time(NULL); // making sure now is updated
-    // DEBUG printf("Sleep time until next task: %lds\n", min_timing - now);
+    // DEBUG
+    printf("Sleep time until next task: %lds\n", min_timing - now);
     sleep(min_timing - now); // Sleep by a little less than the time until next task execution
 
     ret = 0;
