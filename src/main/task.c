@@ -243,12 +243,8 @@ int extract_task(task_t *dest_task, char *dir_path) {
     return 0;
 }
 
-void free_task(task_t *task) {
-    free(task->command);
-}
-
 /* Extracts all the tasks in a dir_path directory, calls extract_task */
-int extract_all(task_array *task_arr, char *dir_path) {
+int extract_all(task_array_t *task_arr, char *dir_path) {
     task_t **tasks = task_arr->tasks;
     int ret = 0;
     DIR *dir = opendir(dir_path);
@@ -281,7 +277,11 @@ int extract_all(task_array *task_arr, char *dir_path) {
     return ret;
 }
 
-void free_task_arr(task_array *task_arr) {
+void free_task(task_t *task) {
+    free(task->command);
+}
+
+void free_task_arr(task_array_t *task_arr) {
     for (int i = 0; i < task_arr->length; i++) {
         free_task((task_arr->tasks)[i]);
     }

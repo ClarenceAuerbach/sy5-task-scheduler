@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -99,15 +100,15 @@ void print_exc(char *path) {
     }
 }
 
-/* Runs every due task and TODO sleeps until next task */
-int run(char *tasks_path, task_array task_array){
+/* Runs every due task and sleeps until next task */
+int run(char *tasks_path, task_array_t * task_array){
     int ret = -1;
     char *stdout_path = NULL;
     char *stderr_path = NULL;
     char *times_exitc_path = NULL;
     int fd_out = -1, fd_err = -1, fd_exc = -1;
 
-    if (task_array.length == 0) return -1;
+    if (task_array->length == 0) return -1;
 
     time_t now;
     time_t min_timing;
@@ -119,17 +120,18 @@ int run(char *tasks_path, task_array task_array){
     if (!stderr_path) goto cleanup;
     times_exitc_path = malloc(paths_length);
     if (!times_exitc_path) goto cleanup;
-
+    
+    // DEBUG print_task(*task_array->tasks[0]);
 
     while(1) {
         // Look for soonest task to be executed
         size_t index = 0;
-        min_timing = task_array.next_times[0];
+        min_timing = INT_MAX;
 
-        for (int i = 0; i < task_array.length; i++) {
-            if (task_array.next_times[i] < min_timing) {
+        for (int i = 0; i < task_array->length; i++) {
+            if ( task_array->next_times[i] >= 0 && task_array->next_times[i] < min_timing) {
                 index = i;
-                min_timing = task_array.next_times[i];
+                min_timing = task_array->next_times[i];
             }
         }
 
@@ -141,11 +143,11 @@ int run(char *tasks_path, task_array task_array){
             break; // Soonest task is still in the future.
         }
         
-
+        sleep(3);
         // Execute the task
-        sprintf(stdout_path, "%s/%d/stdout", tasks_path, task_array.tasks[index]->id);
-        sprintf(stderr_path, "%s/%d/stderr", tasks_path, task_array.tasks[index]->id);
-        sprintf(times_exitc_path, "%s/%d/times-exitcodes", tasks_path, task_array.tasks[index]->id);
+        sprintf(stdout_path, "%s/%d/stdout", tasks_path, task_array->tasks[index]->id);
+        sprintf(stderr_path, "%s/%d/stderr", tasks_path, task_array->tasks[index]->id);
+        sprintf(times_exitc_path, "%s/%d/times-exitcodes", tasks_path, task_array->tasks[index]->id);
 
         fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, S_IRWXU);
         if (fd_out == -1) goto cleanup;
@@ -156,7 +158,7 @@ int run(char *tasks_path, task_array task_array){
 
         // DEBUG
         printf("\033[31mStarting execution!\033[0m\n");
-        ret = exec_command(task_array.tasks[index]->command, fd_out, fd_err);
+        ret = exec_command(task_array->tasks[index]->command, fd_out, fd_err);
 
         time_t now = time(NULL);
         now = htobe64(now);
@@ -184,7 +186,7 @@ int run(char *tasks_path, task_array task_array){
         // Update its next_time
         // (Works because its previous time was in the past, as dictated by check_time)
         now = time(NULL);
-        task_array.next_times[index] = next_exec_time(task_array.tasks[index]->timings, now);
+        task_array->next_times[index] = next_exec_time(task_array->tasks[index]->timings, now);
     }
     now = time(NULL); // making sure now is updated
     // DEBUG
@@ -202,8 +204,8 @@ cleanup:
     return ret;
 }
 
+/* Instantiating RUN_DIRECTORY with default directory */
 void change_rundir(char * newpath){
-    /* Instantiating RUN_DIRECTORY with default directory */
     if(newpath == NULL || strlen(newpath)==0) {
         snprintf(RUN_DIRECTORY, PATH_MAX,"/tmp/%s/erraid",  getenv("USER"));
     } else {
@@ -212,8 +214,6 @@ void change_rundir(char * newpath){
 }
 
 int main(int argc, char *argv[]) {
-    char *tasks_path = NULL;
-    task_array task_arr = {-1, NULL, NULL};
     if( argc > 2 ) {
         printf("Pass at most one argument: run_directory\n");
         exit(0);
@@ -228,35 +228,45 @@ int main(int argc, char *argv[]) {
     child_pid = fork(); 
     assert(child_pid != -1);
     if( child_pid > 0 ) exit(EXIT_SUCCESS); 
+    puts("");
+    /* DO NOT CHANGE THE ABOVE */
+    task_array_t *task_array = NULL;
+    char *tasks_path = NULL;
+    
+    task_array = malloc(sizeof(task_array_t));
+    if (!task_array) goto cleanup;
 
     change_rundir((argc==2) ? argv[1] : "");
 
     tasks_path = malloc(strlen(RUN_DIRECTORY)+6);
     if (!tasks_path) goto cleanup;
+
     strcpy(tasks_path, RUN_DIRECTORY);
     strcat(tasks_path, "/tasks");
 
     int task_count = count_dir_size(tasks_path , 1);
-    task_arr.tasks = malloc(task_count * sizeof(task_t *));
-    if (!task_arr.tasks) goto cleanup;
+    task_array->length = task_count;
+    
+    task_array->tasks = malloc(task_count * sizeof(task_t *));
+    if (!task_array->tasks) goto cleanup;
 
-    if (extract_all(&task_arr, tasks_path)){
+    if (extract_all(task_array, tasks_path)){
         perror("Extract_all failed");
         goto cleanup;
     }
 
-    task_arr.next_times = malloc(task_count * sizeof(time_t));
-    if (!task_arr.next_times) goto cleanup;
+    task_array->next_times = malloc(task_count * sizeof(time_t));
+    if (!task_array->next_times) goto cleanup;
 
     time_t now = time(NULL);
     for(int i = 0; i < task_count; i++) {
-        task_arr.next_times[i] = next_exec_time(task_arr.tasks[i]->timings, now);
+        task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
     }
 
     /* Main loop */
     int ret = 0;
     while(1) {
-        ret += run(tasks_path, task_arr);
+        ret += run(tasks_path, task_array);
         if(ret != 0){
             perror("An Error occured during run()");
             goto cleanup;
@@ -266,6 +276,9 @@ int main(int argc, char *argv[]) {
     // Should only exit on error
 cleanup:
     if (tasks_path) free(tasks_path);
-    if (task_arr.tasks) free(task_arr.tasks);
-    if (task_arr.next_times) free(task_arr.next_times);
+    if (task_array) {
+        if (task_array->tasks) free(task_array->tasks);
+        if (task_array->next_times) free(task_array->next_times);
+        free(task_array);
+    }
 }
