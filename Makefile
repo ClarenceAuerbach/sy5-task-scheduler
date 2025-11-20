@@ -52,7 +52,7 @@ distclean:
 
 # Won't be permanent, removed once we have tadmor
 run : bin/erraid
-	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid ./src/test/data/exemple-arborescence-1/tmp-username-erraid
+	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid ./src/test/data/exemple-arborescence-2/tmp-username-erraid
 
 kill : 
 	@PID=$$(ps aux | grep './bin/erraid' | awk '{print $$2}'); \

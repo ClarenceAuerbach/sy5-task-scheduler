@@ -17,6 +17,7 @@
 
 #include "task.h"
 #include "timing_t.h"
+#include "erraid_util.h"
 
 char RUN_DIRECTORY[PATH_MAX];
 
@@ -70,34 +71,9 @@ int exec_command(command_t *com, int fd_out, int fd_err){
             ret = exec_command(&com->cmd[i], fd_out, fd_err);
         }
     } else if (com->type == SI){
-        printf("Simple task\n");
         ret = exec_simple_command(com, fd_out, fd_err);
     }
     return ret;
-}
-
-void print_exc(char *path) {
-    int fd = open(path, O_RDONLY);
-    if (fd == -1) {
-        perror("Erreur ouverture fichier");
-        return ;
-    }
-    while(1){
-        time_t time = 0;
-        if (read(fd, &time, 8) != 8) {
-            close(fd);
-            return;
-        }
-        time = be64toh(time);
-        uint16_t ret;
-        if (read(fd, &ret, 2) != 2) {
-            close(fd);
-            return ;
-        }
-        ret = be16toh(ret);
-
-        printf("%s: %d\n", ctime(&time), ret);
-    }
 }
 
 /* Runs every due task and sleeps until next task */
@@ -157,7 +133,7 @@ int run(char *tasks_path, task_array_t * task_array){
         if (fd_exc == -1) goto cleanup;
 
         // DEBUG
-        printf("\033[31mStarting execution!\033[0m\n");
+        printf("\n\033[31mStarting execution!\033[0m\n");
         ret = exec_command(task_array->tasks[index]->command, fd_out, fd_err);
 
         time_t now = time(NULL);

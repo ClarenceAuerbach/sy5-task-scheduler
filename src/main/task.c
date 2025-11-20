@@ -12,70 +12,9 @@
 #include <endian.h>
 
 #include "task.h"
+#include "erraid_util.h"
 
-/* Print bits for any datatype assumes little endian */
-void printBits(size_t const size, void const * const ptr)
-{
-    unsigned char *b = (unsigned char*) ptr;
-    unsigned char byte;
-    int i, j;
-    
-    for (i = size-1; i >= 0; i--) {
-        for (j = 7; j >= 0; j--) {
-            byte = (b[i] >> j) & 1;
-            printf("%u", byte);
-        }
-    }
-    puts("");
-}
-
-/* Prints a string_t */
-void print_string( string_t string){
-    for(int i=0 ; i < (int) string.length ; i++){
-        printf("%c", (string.data)[i]);
-    }
-    printf("\n");
-}
-/* Prints a task_t */
-void print_task(task_t task){
-    printf( "Task ID : %d\n", task.id );
-    printf( "Timing : \n" );
-    printBits(8, &(task.timings.minutes));
-    printBits(2, &(task.timings.hours));
-    printBits(1, &(task.timings.daysofweek));
-    printf("Command : \n" );
-    char type[3];
-    memcpy(type, &(task.command->type), 2);
-    type[2] = '\0';
-    printf("  type : %s\n", type);
-    printf("  nbcmds : %d \n", task.command->nbcmds);
-    printf("  argv :\n");
-
-    for(int i=0 ; i < (int) task.command->args.argc ; i++){
-        print_string((task.command->args.argv)[i]);
-    }
-}
-
-/* Counts the amount of files in a dir if only_count_dir = 0 ,
-*  counts the amount of directories if only_count_dir = 1 */
-int count_dir_size(char *dir_path , int only_count_dir) {
-    DIR *dir = opendir(dir_path);
-    if (dir == NULL) {
-        perror("cannot open dir path");
-        return -1;
-    }
-    struct dirent *entry;
-    int i = 0;
-    while ((entry = readdir(dir))) {
-        if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
-
-        struct stat st ;
-        stat(dir_path, &st);
-        if ( !only_count_dir || S_ISDIR(st.st_mode) ) i++;
-    }
-    return i;
-}
-
+/* Command directory to struct command_t, recursive */
 int extract_cmd(command_t *dest_cmd, char *dir_path) {
     DIR *dir = opendir(dir_path);
 
@@ -160,20 +99,6 @@ int extract_cmd(command_t *dest_cmd, char *dir_path) {
     }
     dest_cmd->nbcmds = (uint32_t)count;
     return 0;
-}
-
-void free_cmd(command_t cmd) {
-    // Command is simple, subcommands cmd and command count nbcmds are empty
-    if (cmd.type == SI) {
-        for (uint32_t i = 0; i < cmd.args.argc; i++) {
-            free(cmd.args.argv[i].data);
-        }
-        free(cmd.args.argv);
-    } else { // Complex command, args is empty
-        for (uint32_t i = 0; i < cmd.nbcmds; i++) {
-            free_cmd(cmd.cmd[i]);
-        }
-    }
 }
 
 /* Task directory to struct task_t, calls extract_cmd */
@@ -275,6 +200,23 @@ int extract_all(task_array_t *task_arr, char *dir_path) {
         i++;
     }
     return ret;
+}
+
+
+/* Free functions */
+
+void free_cmd(command_t cmd) {
+    // Command is simple, subcommands cmd and command count nbcmds are empty
+    if (cmd.type == SI) {
+        for (uint32_t i = 0; i < cmd.args.argc; i++) {
+            free(cmd.args.argv[i].data);
+        }
+        free(cmd.args.argv);
+    } else { // Complex command, args is empty
+        for (uint32_t i = 0; i < cmd.nbcmds; i++) {
+            free_cmd(cmd.cmd[i]);
+        }
+    }
 }
 
 void free_task(task_t *task) {
