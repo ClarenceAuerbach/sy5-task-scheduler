@@ -17,9 +17,6 @@
 #include "task.h"
 #include "timing_t.h"
 
-#define SI (('I'<<8)|'S')
-#define SQ (('Q'<<8)|'S')
-
 char RUN_DIRECTORY[PATH_MAX];
 
 /* Execute a simple command of type SI */
@@ -64,12 +61,11 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
 }
 
 /* TODO Execute commands of every type correctly */
-int exec_command(command_t * com, int fd_out, int fd_err){
+int exec_command(command_t *com, int fd_out, int fd_err){
     int ret = 0;
     if (com->type == SQ){
         printf("\033[35mSequential task started\033[0m\n");
-        for (unsigned int i=0; i<com->nbcmds; i++){
-            printf("executing one command\n");
+        for (unsigned int i=0; i < com->nbcmds; i++){
             ret = exec_command(&com->cmd[i], fd_out, fd_err);
         }
     } else if (com->type == SI){
@@ -128,12 +124,12 @@ int run(char *tasks_path, task_array task_array){
     while(1) {
         // Look for soonest task to be executed
         size_t index = 0;
-        min_timing = task_array.next_time[0];
+        min_timing = task_array.next_times[0];
 
         for (int i = 0; i < task_array.length; i++) {
-            if (task_array.next_time[i] < min_timing) {
+            if (task_array.next_times[i] < min_timing) {
                 index = i;
-                min_timing = task_array.next_time[i];
+                min_timing = task_array.next_times[i];
             }
         }
 
@@ -175,7 +171,7 @@ int run(char *tasks_path, task_array task_array){
         }
 
         // DEBUG 
-        print_exc( times_exitc_path);
+        print_exc(times_exitc_path);
         
         close(fd_exc);
         close(fd_out);
@@ -188,7 +184,7 @@ int run(char *tasks_path, task_array task_array){
         // Update its next_time
         // (Works because its previous time was in the past, as dictated by check_time)
         now = time(NULL);
-        task_array.next_time[index] = next_exec_time(task_array.tasks[index]->timings, now);
+        task_array.next_times[index] = next_exec_time(task_array.tasks[index]->timings, now);
     }
     now = time(NULL); // making sure now is updated
     // DEBUG
@@ -217,8 +213,7 @@ void change_rundir(char * newpath){
 
 int main(int argc, char *argv[]) {
     char *tasks_path = NULL;
-    task_t **tasks = NULL;
-    time_t *times = NULL;
+    task_array task_arr = {-1, NULL, NULL};
     if( argc > 2 ) {
         printf("Pass at most one argument: run_directory\n");
         exit(0);
@@ -242,27 +237,26 @@ int main(int argc, char *argv[]) {
     strcat(tasks_path, "/tasks");
 
     int task_count = count_dir_size(tasks_path , 1);
-    tasks = malloc(task_count * sizeof(task_t *));
-    if (!tasks) goto cleanup;
-    
-    if (extract_all(tasks, tasks_path)){
+    task_arr.tasks = malloc(task_count * sizeof(task_t *));
+    if (!task_arr.tasks) goto cleanup;
+
+    if (extract_all(&task_arr, tasks_path)){
         perror("Extract_all failed");
         goto cleanup;
     }
 
-    times = malloc(task_count * sizeof(time_t));
-    if (!times) goto cleanup;
+    task_arr.next_times = malloc(task_count * sizeof(time_t));
+    if (!task_arr.next_times) goto cleanup;
 
     time_t now = time(NULL);
     for(int i = 0; i < task_count; i++) {
-        times[i] = next_exec_time(tasks[i]->timings, now);
+        task_arr.next_times[i] = next_exec_time(task_arr.tasks[i]->timings, now);
     }
-    task_array task_array = {task_count, tasks, times};
 
     /* Main loop */
     int ret = 0;
     while(1) {
-        ret += run(tasks_path, task_array);
+        ret += run(tasks_path, task_arr);
         if(ret != 0){
             perror("An Error occured during run()");
             goto cleanup;
@@ -272,6 +266,6 @@ int main(int argc, char *argv[]) {
     // Should only exit on error
 cleanup:
     if (tasks_path) free(tasks_path);
-    if (tasks) free(tasks);
-    if (times) free(times);
+    if (task_arr.tasks) free(task_arr.tasks);
+    if (task_arr.next_times) free(task_arr.next_times);
 }
