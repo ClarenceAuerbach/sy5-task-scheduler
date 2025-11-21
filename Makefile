@@ -1,7 +1,7 @@
 .PHONY: run kill clean test prepare_tests
 
 CC      = gcc
-CFLAGS  = -Wall -Wextra -std=c17 -Iinclude
+CFLAGS  = -Wall -Wextra -std=c17 -Iinclude -g
 
 MAIN_SRCS = $(wildcard src/main/*.c)
 TEST_SRCS = $(wildcard src/test/*.c)
@@ -52,7 +52,7 @@ distclean:
 
 # Won't be permanent, removed once we have tadmor
 run : bin/erraid
-	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid ./src/test/data/exemple-arborescence-2/tmp-username-erraid
+	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid ./src/test/data/exemple-arborescence-3/tmp-username-erraid
 
 kill : 
 	@PID=$$(ps aux | grep './bin/erraid' | awk '{print $$2}'); \
