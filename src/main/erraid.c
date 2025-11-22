@@ -190,8 +190,11 @@ void change_rundir(char * newpath){
 }
 
 int main(int argc, char *argv[]) {
-    if( argc > 2 ) {
+    if( argc > 3 ) {
         printf("Pass at most one argument: run_directory\n");
+        for(int i=2; i<argc ; i++){
+            printf("%s\n", argv[i]);
+        }
         exit(0);
     }
 
@@ -214,7 +217,7 @@ int main(int argc, char *argv[]) {
 
     change_rundir((argc==2) ? argv[1] : "");
 
-    tasks_path = malloc(strlen(RUN_DIRECTORY)+6);
+    tasks_path = malloc(strlen(RUN_DIRECTORY)+7);
     if (!tasks_path) goto cleanup;
 
     strcpy(tasks_path, RUN_DIRECTORY);
