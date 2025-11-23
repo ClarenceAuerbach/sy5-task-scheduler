@@ -190,25 +190,21 @@ void change_rundir(char * newpath){
 }
 
 int main(int argc, char *argv[]) {
-    if( argc > 3 ) {
-        printf("Pass at most one argument: run_directory\n");
-        for(int i=2; i<argc ; i++){
-            printf("%s\n", argv[i]);
-        }
-        exit(0);
-    }
+    /* Removing double fork for autotests
 
-    /* Double fork() keeping the grand-child, exists in a new session id */
+    // Double fork() keeping the grand-child, exists in a new session id
     pid_t child_pid = fork(); 
     assert(child_pid != -1);
-    if(child_pid > 0) exit(EXIT_SUCCESS); 
+    if(child_pid > 0) _exit(EXIT_SUCCESS); 
     
     setsid();
     child_pid = fork(); 
     assert(child_pid != -1);
     if( child_pid > 0 ) exit(EXIT_SUCCESS); 
     puts("");
-    /* DO NOT CHANGE THE ABOVE */
+    // DO NOT CHANGE THE ABOVE
+
+    */
     task_array_t *task_array = NULL;
     char *tasks_path = NULL;
     

@@ -6,9 +6,9 @@ CFLAGS  = -Wall -Wextra -std=c17 -Iinclude -g
 MAIN_SRCS = $(wildcard src/main/*.c)
 TEST_SRCS = $(wildcard src/test/*.c)
 MAIN_OBJS = $(MAIN_SRCS:src/main/%.c=obj/main/%.o)
-TEST_BINS = $(TEST_SRCS:src/test/%.c=bin/test/%)
+TEST_BINS = $(TEST_SRCS:src/test/%.c=test_bin/%)
 
-all: bin/erraid test
+all: erraid test
 
 test: prepare_tests
 	@echo "\033[1mRunning Tests\033[0m"
@@ -31,11 +31,11 @@ test: prepare_tests
 
 prepare_tests: $(TEST_BINS)
 
-bin/erraid: $(MAIN_OBJS) | bin
+erraid: $(MAIN_OBJS) | test_bin
 	$(CC) $^ -o $@
 
 # Linking all main object files to avoid dependency issues
-bin/test/test_%: obj/test/test_%.o $(filter-out obj/main/erraid.o, $(MAIN_OBJS)) | bin/test
+test_bin/test_%: obj/test/test_%.o $(filter-out obj/main/erraid.o, $(MAIN_OBJS)) | test_bin
 	$(CC) $^ -o $@
 
 obj/main/%.o: src/main/%.c | obj/main
@@ -44,18 +44,18 @@ obj/main/%.o: src/main/%.c | obj/main
 obj/test/%.o: src/test/%.c | obj/test
 	$(CC) $(CFLAGS) -c $< -o $@
 
-obj/test obj/main bin/test bin:
+obj/test obj/main test_bin:
 	mkdir -p $@
 
 distclean:
 	rm -rf bin obj
 
 # Won't be permanent, removed once we have tadmor
-run : bin/erraid
+run : erraid
 	mkdir -p /tmp/$(USER)/erraid/tasks && ./bin/erraid ./src/test/data/exemple-arborescence-3/tmp-username-erraid
 
 kill : 
-	@PID=$$(ps aux | grep './bin/erraid' | awk '{print $$2}'); \
+	@PID=$$(ps aux | grep 'erraid' | awk '{print $$2}'); \
 	if [ -n "$$PID" ]; then \
 		kill $$PID ; \
 	fi
