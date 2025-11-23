@@ -22,11 +22,19 @@ int next_set_bit(uint64_t bitmap, int start, int end) {
  or the next timing overflows time_t
 */
 time_t next_exec_time(timing_t timing, time_t start_time) {
+    // Must find a time strictly in the future
+    // (Otherwise infinite execution of a task within the same second)
     start_time++;
     struct tm *src = localtime(&start_time);
     if (!src) return -1; // localtime error
     // Copy. src is a pointer to volatile static memory
     struct tm tm = *src;
+    // Starting on a round minute
+    if (tm.tm_sec != 0) {
+    	tm.tm_min++;
+	tm.tm_sec = 0;
+	mktime(&tm);
+    }
     while(1) {
         int next_day = next_set_bit(timing.daysofweek, tm.tm_wday, 7);
         if (next_day == -1) { // Wrap to next week
@@ -36,10 +44,12 @@ time_t next_exec_time(timing_t timing, time_t start_time) {
             tm.tm_mday += (next_day - tm.tm_wday) + 7;
             tm.tm_hour = 0;
             tm.tm_min = 0;
-            tm.tm_sec = 0;
             mktime(&tm);
             continue;
         }
+	// update the day of the month (because wday is ignored in mktime)
+        tm.tm_mday += next_day - tm.tm_wday;
+	mktime(&tm);
 
         int next_hour = next_set_bit(timing.hours, tm.tm_hour, 24);
         if (next_hour == -1) {
@@ -47,7 +57,6 @@ time_t next_exec_time(timing_t timing, time_t start_time) {
             tm.tm_mday++;
             tm.tm_hour = 0;
             tm.tm_min = 0;
-            tm.tm_sec = 0;
             mktime(&tm);
             continue;
         }
@@ -57,22 +66,12 @@ time_t next_exec_time(timing_t timing, time_t start_time) {
         if (next_min == -1) {
             tm.tm_hour++;
             tm.tm_min = 0;
-            tm.tm_sec = 0;
             mktime(&tm);
             continue;
         }
         tm.tm_min = next_min;
 
-        if (tm.tm_sec != 0) {
-            tm.tm_min++;
-            tm.tm_sec = 0;
-        }
-
         time_t res = mktime(&tm);
-        // If the next_exec_time of timing_t is the current time, it will fall through all checks
-        // So an explicit check is needed
-        // if (res == start_time) res++;
-
         return res;
     }
 }
