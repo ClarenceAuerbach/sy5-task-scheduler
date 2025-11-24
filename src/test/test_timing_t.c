@@ -3,17 +3,15 @@
 #include "timing_t.h"
 
 int main() {
-    // ~~~~~ Test check_time ~~~~~
+    // ~~~~~ Test next_set_bit ~~~~~
     {
-        time_t now;
-        time(&now);
-        time_t then = now - 5;
-        assert(check_time(then, 1) == 0);
-        then += 5; // Should take less than a second to execute
-        assert(check_time(then, 1) == 1);
-        then += 6;
-        assert(check_time(then, 5) == 0);
+        for (int i = 0; i < 60; i++) {
+            for (int start = 0; start <= i; start++) {
+                assert(next_set_bit((uint64_t)1<<i, start, 60) == i);
+            }
+        }
     }
+
     // ~~~~~ Test where nothing should work ~~~~~
     {
         timing_t timing = {
@@ -29,26 +27,32 @@ int main() {
         assert(next_exec_time(timing, time(NULL)) == -1);
     }
 
-    // ~~~~~ Test where only one time exists ~~~~~
+    // ~~~~~ Tests where only one time exists ~~~~~
     {
-        timing_t timing = {
-            .minutes = 1 << 25, // Somewhere in the middle
-            .hours = 1 << 23, // Last bit
-            .daysofweek = 1, // First bit
-        };
-        assert(next_set_bit(timing.minutes, 0, 60) == 25);
-        assert(next_set_bit(timing.hours, 0, 24) == 23);
-        assert(next_set_bit(timing.daysofweek, 0, 7) == 0);
-        // Checking to make sure the time has correct
-        //  days, hours, minutes, seconds
-        time_t next_time = next_exec_time(timing, time(NULL));
-        struct tm *tm = localtime(&next_time);
-        
-        // Time should always fall on the first second (0)
-        assert(tm->tm_sec == 0);
-        assert(tm->tm_min == 25);
-        assert(tm->tm_hour == 23);
-        assert(tm->tm_wday == 0);
+        time_t now = time(NULL);
+
+        for (int min = 0; min < 60; min++) {
+        for (int hour = 0; hour < 24; hour++) {
+        for (int day = 0; day < 7; day++) {
+            timing_t timing = {
+                .minutes = (uint64_t)1 << min,
+                .hours = (uint32_t)1 << hour,
+                .daysofweek = (uint8_t)1 << day,
+            };
+            assert(next_set_bit(timing.minutes, 0, 60) == min);
+            assert(next_set_bit(timing.hours, 0, 24) == hour);
+            assert(next_set_bit(timing.daysofweek, 0, 7) == day);
+            time_t next_time = next_exec_time(timing, now);
+            struct tm *tm = localtime(&next_time);
+            assert(next_time > now);
+            assert(next_time - now <= 604800); // Not more than one week in the future
+            assert(tm->tm_sec == 0);
+            assert(tm->tm_min == min);
+            assert(tm->tm_hour == hour);
+            assert(tm->tm_wday == day);
+        }
+        }
+        }
     }
 
     // ~~~~~ Somewhat complicated test ~~~~~

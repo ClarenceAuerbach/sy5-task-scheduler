@@ -41,6 +41,7 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
             case 0: {
                 /* allocate array of char* pointers */
                 char **argv = malloc((com->args.argc + 1) * sizeof(char *));
+                char **argv = malloc((com->args.argc + 1) * sizeof(char *));
                 for (int i = 0; i < (int) com->args.argc; i++){
                     argv[i] = malloc((com->args.argv[i].length + 1) * sizeof(char));
                     memcpy(argv[i], com->args.argv[i].data, com->args.argv[i].length);
@@ -59,6 +60,8 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
                 exit(127);
             }
             default: 
+		close(fd_out);
+		close(fd_err);
                 waitpid(pid, &status, 0) ; 
                 if (WIFEXITED(status)) {
                     return WEXITSTATUS(status);  // normal exitcode
@@ -130,17 +133,16 @@ int run(char *tasks_path, task_array_t * task_array){
             break; // Soonest task is still in the future.
         }
         
-        sleep(3);
         // Execute the task
     snprintf(stdout_path, PATH_MAX, "%s/%d/stdout", tasks_path, task_array->tasks[index]->id);
     snprintf(stderr_path, PATH_MAX, "%s/%d/stderr", tasks_path, task_array->tasks[index]->id);
     snprintf(times_exitc_path, PATH_MAX, "%s/%d/times-exitcodes", tasks_path, task_array->tasks[index]->id);
 
-        fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, S_IRWXU);
+        fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
         if (fd_out == -1) goto cleanup;
-        fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, S_IRWXU);
+        fd_err = open(stderr_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
         if (fd_err == -1) goto cleanup;
-        fd_exc = open(times_exitc_path, O_WRONLY | O_CREAT | O_APPEND , S_IRWXU);
+        fd_exc = open(times_exitc_path, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU);
         if (fd_exc == -1) goto cleanup;
 
         // DEBUG
@@ -152,10 +154,17 @@ int run(char *tasks_path, task_array_t * task_array){
         uint16_t beret = htobe16(ret);
         if(write(fd_exc, &be_now, sizeof(be_now)) != (ssize_t)sizeof(be_now)) {
             printf("Write failed");
+        time_t after_exec = time(NULL);
+        time_t be_time = htobe64(after_exec);
+        uint16_t be_ret = htobe16(ret);
+        if (write(fd_exc, &be_time, 8) != 8) {
+            perror("Write failed");
             goto cleanup;
         }
         if(write(fd_exc, &beret, sizeof(beret)) != (ssize_t)sizeof(beret)) {
             printf("Write failed");
+        if (write(fd_exc, &be_ret, 2) != 2) {
+            perror("Write failed");
             goto cleanup;
         }
 
@@ -173,13 +182,14 @@ int run(char *tasks_path, task_array_t * task_array){
 
         // Update its next_time
         // (Works because its previous time was in the past, as dictated by check_time)
-        now = time(NULL);
         task_array->next_times[index] = next_exec_time(task_array->tasks[index]->timings, now);
     }
-    now = time(NULL); // making sure now is updated
     // DEBUG
+    printf("Min timing: %s\n", ctime(&min_timing));
     printf("Sleep time until next task: %lds\n", min_timing - now);
-    sleep(min_timing - now); // Sleep by a little less than the time until next task execution
+    if (min_timing - now > 0) {
+        sleep(min_timing - now);
+    }
 
     ret = 0;
 cleanup:
@@ -194,7 +204,7 @@ cleanup:
 
 /* Instantiating RUN_DIRECTORY with default directory */
 void change_rundir(char * newpath){
-    if(newpath == NULL || strlen(newpath)==0) {
+    if (newpath == NULL || strlen(newpath)==0) {
         snprintf(RUN_DIRECTORY, PATH_MAX,"/tmp/%s/erraid",  getenv("USER"));
     } else {
         /* copy safely into fixed-size RUN_DIRECTORY */
@@ -208,15 +218,15 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
 
-    /* Double fork() keeping the grand-child, exists in a new session id */
+    // Double fork() keeping the grand-child, exists in a new session id
     pid_t child_pid = fork(); 
     assert(child_pid != -1);
-    if(child_pid > 0) exit(EXIT_SUCCESS); 
+    if (child_pid > 0) _exit(EXIT_SUCCESS); 
     
     setsid();
     child_pid = fork(); 
     assert(child_pid != -1);
-    if( child_pid > 0 ) exit(EXIT_SUCCESS); 
+    if (child_pid > 0 ) exit(EXIT_SUCCESS); 
     puts("");
 
     /* install signal handlers to request graceful shutdown */

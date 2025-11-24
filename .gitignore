@@ -1,4 +1,5 @@
-bin
+erraid
+test_bin
 obj
 .vscode
 .cache
