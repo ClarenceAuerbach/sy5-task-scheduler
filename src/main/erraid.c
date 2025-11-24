@@ -137,14 +137,14 @@ int run(char *tasks_path, task_array_t * task_array){
         printf("\n\033[31mStarting execution!\033[0m\n");
         ret = exec_command(task_array->tasks[index]->command, fd_out, fd_err);
 
-        time_t now = time(NULL);
-        now = htobe64(now);
-        uint16_t beret = htobe16(ret);
-        if (write(fd_exc, &now, 8) != 8) {
+        time_t after_exec = time(NULL);
+        time_t be_time = htobe64(after_exec);
+        uint16_t be_ret = htobe16(ret);
+        if (write(fd_exc, &be_time, 8) != 8) {
             perror("Write failed");
             goto cleanup;
         }
-        if (write(fd_exc, &beret, 2) != 2) {
+        if (write(fd_exc, &be_ret, 2) != 2) {
             perror("Write failed");
             goto cleanup;
         }
@@ -165,6 +165,7 @@ int run(char *tasks_path, task_array_t * task_array){
         task_array->next_times[index] = next_exec_time(task_array->tasks[index]->timings, now);
     }
     // DEBUG
+    printf("Min timing: %s\n", ctime(&min_timing));
     printf("Sleep time until next task: %lds\n", min_timing - now);
     if (min_timing - now > 0) {
         sleep(min_timing - now);
@@ -240,7 +241,6 @@ int main(int argc, char *argv[]) {
     }
 
     /* Main loop */
-    int ret = 0;
     while(1) {
         run(tasks_path, task_array);
     }

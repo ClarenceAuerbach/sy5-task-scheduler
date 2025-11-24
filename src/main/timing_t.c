@@ -27,9 +27,9 @@ time_t next_exec_time(timing_t timing, time_t start_time) {
     struct tm tm = *src;
     // Starting on a round minute
     if (tm.tm_sec != 0) {
-    	tm.tm_min++;
-	tm.tm_sec = 0;
-	mktime(&tm);
+        tm.tm_min++;
+        tm.tm_sec = 0;
+        mktime(&tm);
     }
     while (1) {
         int next_day = next_set_bit(timing.daysofweek, tm.tm_wday, 7);
