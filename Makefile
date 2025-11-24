@@ -10,6 +10,16 @@ TEST_BINS = $(TEST_SRCS:src/test/%.c=test_bin/%)
 
 all: erraid test
 
+# Won't be permanent, removed once we have tadmor
+run1: erraid
+	./erraid ./src/test/data/exemple-arborescence-1/tmp-username-erraid
+run2: erraid
+	./erraid ./src/test/data/exemple-arborescence-2/tmp-username-erraid
+run3: erraid
+	./erraid ./src/test/data/exemple-arborescence-3/tmp-username-erraid
+run4: erraid
+	./erraid ./src/test/data/exemple-arborescence-4/tmp-username-erraid
+
 test: prepare_tests
 	@echo "\033[1mRunning Tests\033[0m"
 	@passed=0; failed=0; \
@@ -49,10 +59,7 @@ obj/test obj/main test_bin:
 
 distclean:
 	rm -rf bin obj
-
-# Won't be permanent, removed once we have tadmor
-run : erraid
-	mkdir -p /tmp/$(USER)/erraid/tasks && ./erraid ./src/test/data/exemple-arborescence-3/tmp-username-erraid
+	rm erraid
 
 kill : 
 	@PID=$$(ps aux | grep './erraid' | awk '{print $$2}'); \
