@@ -14,12 +14,20 @@
 #include <limits.h>
 #include <sys/wait.h>
 #include <endian.h>
+#include <signal.h>
 
 #include "task.h"
 #include "timing_t.h"
 #include "erraid_util.h"
 
 char RUN_DIRECTORY[PATH_MAX];
+
+static volatile sig_atomic_t stop_requested = 0;
+
+static void handle_stop(int sig) {
+    (void)sig;
+    stop_requested = 1;
+}
 
 /* Execute a simple command of type SI */
 int exec_simple_command(command_t *com, int fd_out, int fd_err){
@@ -31,7 +39,8 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
                 perror ("Error when intializing process");
                 return -1;
             case 0: {
-                char **argv = malloc((com->args.argc + 1) * 4);
+                /* allocate array of char* pointers */
+                char **argv = malloc((com->args.argc + 1) * sizeof(char *));
                 for (int i = 0; i < (int) com->args.argc; i++){
                     argv[i] = malloc((com->args.argv[i].length + 1) * sizeof(char));
                     memcpy(argv[i], com->args.argv[i].data, com->args.argv[i].length);
@@ -89,12 +98,14 @@ int run(char *tasks_path, task_array_t * task_array){
     time_t now;
     time_t min_timing;
 
-    int paths_length = strlen(tasks_path) + 16;
-    stdout_path = malloc(paths_length);
+    /* allocate full PATH_MAX buffers for constructed paths to avoid
+     * repeated strcat/strcpy overflows in downstream code that mutates
+     * the passed path strings. Using PATH_MAX is simpler and safer here. */
+    stdout_path = malloc(PATH_MAX);
     if (!stdout_path) goto cleanup;
-    stderr_path = malloc(paths_length);
+    stderr_path = malloc(PATH_MAX);
     if (!stderr_path) goto cleanup;
-    times_exitc_path = malloc(paths_length);
+    times_exitc_path = malloc(PATH_MAX);
     if (!times_exitc_path) goto cleanup;
     
     // DEBUG print_task(*task_array->tasks[0]);
@@ -121,9 +132,9 @@ int run(char *tasks_path, task_array_t * task_array){
         
         sleep(3);
         // Execute the task
-        sprintf(stdout_path, "%s/%d/stdout", tasks_path, task_array->tasks[index]->id);
-        sprintf(stderr_path, "%s/%d/stderr", tasks_path, task_array->tasks[index]->id);
-        sprintf(times_exitc_path, "%s/%d/times-exitcodes", tasks_path, task_array->tasks[index]->id);
+    snprintf(stdout_path, PATH_MAX, "%s/%d/stdout", tasks_path, task_array->tasks[index]->id);
+    snprintf(stderr_path, PATH_MAX, "%s/%d/stderr", tasks_path, task_array->tasks[index]->id);
+    snprintf(times_exitc_path, PATH_MAX, "%s/%d/times-exitcodes", tasks_path, task_array->tasks[index]->id);
 
         fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC | O_APPEND, S_IRWXU);
         if (fd_out == -1) goto cleanup;
@@ -137,13 +148,13 @@ int run(char *tasks_path, task_array_t * task_array){
         ret = exec_command(task_array->tasks[index]->command, fd_out, fd_err);
 
         time_t now = time(NULL);
-        now = htobe64(now);
+        uint64_t be_now = htobe64((uint64_t)now);
         uint16_t beret = htobe16(ret);
-        if(write(fd_exc, &now, 8) != 8) {
+        if(write(fd_exc, &be_now, sizeof(be_now)) != (ssize_t)sizeof(be_now)) {
             printf("Write failed");
             goto cleanup;
         }
-        if(write(fd_exc, &beret, 2) != 2) {
+        if(write(fd_exc, &beret, sizeof(beret)) != (ssize_t)sizeof(beret)) {
             printf("Write failed");
             goto cleanup;
         }
@@ -155,9 +166,10 @@ int run(char *tasks_path, task_array_t * task_array){
         close(fd_out);
         close(fd_err);
 
-        memset(stdout_path, 0, strlen(stdout_path));
-        memset(stderr_path, 0, strlen(stderr_path));
-        memset(times_exitc_path, 0, strlen(times_exitc_path));
+    /* clear strings efficiently */
+    if (stdout_path[0]) stdout_path[0] = '\0';
+    if (stderr_path[0]) stderr_path[0] = '\0';
+    if (times_exitc_path[0]) times_exitc_path[0] = '\0';
 
         // Update its next_time
         // (Works because its previous time was in the past, as dictated by check_time)
@@ -185,16 +197,14 @@ void change_rundir(char * newpath){
     if(newpath == NULL || strlen(newpath)==0) {
         snprintf(RUN_DIRECTORY, PATH_MAX,"/tmp/%s/erraid",  getenv("USER"));
     } else {
-        strcpy(RUN_DIRECTORY, newpath);
+        /* copy safely into fixed-size RUN_DIRECTORY */
+        snprintf(RUN_DIRECTORY, PATH_MAX, "%s", newpath);
     } 
 }
 
 int main(int argc, char *argv[]) {
     if( argc > 3 ) {
         printf("Pass at most one argument: run_directory\n");
-        for(int i=2; i<argc ; i++){
-            printf("%s\n", argv[i]);
-        }
         exit(0);
     }
 
@@ -208,6 +218,16 @@ int main(int argc, char *argv[]) {
     assert(child_pid != -1);
     if( child_pid > 0 ) exit(EXIT_SUCCESS); 
     puts("");
+
+    /* install signal handlers to request graceful shutdown */
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = handle_stop;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
+    sigaction(SIGTERM, &sa, NULL);
+    
     /* DO NOT CHANGE THE ABOVE */
     task_array_t *task_array = NULL;
     char *tasks_path = NULL;
@@ -215,13 +235,12 @@ int main(int argc, char *argv[]) {
     task_array = malloc(sizeof(task_array_t));
     if (!task_array) goto cleanup;
 
-    change_rundir((argc==2) ? argv[1] : "");
+    change_rundir((argc>=2) ? argv[1] : "");
 
-    tasks_path = malloc(strlen(RUN_DIRECTORY)+7);
+    tasks_path = malloc(PATH_MAX+7);
     if (!tasks_path) goto cleanup;
 
-    strcpy(tasks_path, RUN_DIRECTORY);
-    strcat(tasks_path, "/tasks");
+    snprintf(tasks_path, PATH_MAX+7, "%s/tasks", RUN_DIRECTORY);
 
     int task_count = count_dir_size(tasks_path , 1);
     task_array->length = task_count;
@@ -242,9 +261,9 @@ int main(int argc, char *argv[]) {
         task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
     }
 
-    /* Main loop */
+    /* Main loop: exit when a stop signal is received */
     int ret = 0;
-    while(1) {
+    while(!stop_requested) {
         ret += run(tasks_path, task_array);
         if(ret != 0){
             perror("An Error occured during run()");
@@ -254,10 +273,10 @@ int main(int argc, char *argv[]) {
     
     // Should only exit on error
 cleanup:
-    if (tasks_path) free(tasks_path);
+    /* Perform full cleanup of task structures */
     if (task_array) {
-        if (task_array->tasks) free(task_array->tasks);
-        if (task_array->next_times) free(task_array->next_times);
+        free_task_arr(task_array);
         free(task_array);
     }
+    if (tasks_path) free(tasks_path);
 }

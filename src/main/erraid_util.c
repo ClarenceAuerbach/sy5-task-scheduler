@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <limits.h>
+#include <errno.h>
 #include <endian.h>
 #include <string.h>
 #include <dirent.h>
@@ -86,19 +87,37 @@ void print_task(task_t task){
 /* Counts the amount of files in a dir if only_count_dir = 0 ,
 *  counts the amount of directories if only_count_dir = 1 */
 int count_dir_size(char *dir_path , int only_count_dir) {
+    if (dir_path == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
     DIR *dir = opendir(dir_path);
     if (dir == NULL) {
         perror("cannot open dir path");
         return -1;
     }
+
     struct dirent *entry;
     int i = 0;
+    char path[PATH_MAX];
     while ((entry = readdir(dir))) {
-        if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) continue;
 
-        struct stat st ;
-        stat(dir_path, &st);
-        if ( !only_count_dir || S_ISDIR(st.st_mode) ) i++;
+        int n = snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name);
+        if (n < 0 || n >= (int) sizeof(path)) {
+            /* truncated or encoding error; skip this entry */
+            continue;
+        }
+        struct stat st;
+        if (stat(path, &st) == -1) {
+            /* couldn't stat entry - skip it */
+            continue;
+        }
+
+        if (!only_count_dir || S_ISDIR(st.st_mode)) i++;
     }
+
+    closedir(dir);
     return i;
 }
