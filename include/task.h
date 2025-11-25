@@ -1,6 +1,8 @@
 #ifndef TASK_H
 #define TASK_H
+#define _GNU_SOURCE
 
+#include<endian.h>
 #include <stdint.h>
 #include <timing_t.h>
 
@@ -26,8 +28,9 @@ typedef struct {
 * If simple type, args is defined, nbcmds and cmd are not.
 * If any other (complex) type, args will not be defined, nbcmds and cmd will be.
 */
+
 typedef struct command_t {
-    uint16_t type;
+    char type[3];
     arguments_t args;
     uint32_t nbcmds;
     struct command_t *cmd;
@@ -44,18 +47,21 @@ typedef struct {
 
 typedef struct {
     int length;
-    task_t * * tasks;
-    time_t * next_time;
-} task_array;
+    task_t **tasks;
+    time_t *next_times;
+} task_array_t;
 
 void print_task(task_t task);
 
-int extract_all(task_t *task[], char *dir_path);
+int extract_all(task_array_t *task_arr, char *dir_path);
 
 int extract_task(task_t *dest_task, char *dir_path);
 
 int extract_cmd(command_t * dest_cmd, char * cmd_path);
 
 int count_dir_size(char *dir_path, int only_count_dir);
+
+/* Free helpers */
+void free_task_arr(task_array_t *task_arr);
 
 #endif

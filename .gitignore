@@ -1,4 +1,6 @@
-bin
+erraid
+test_bin
 obj
 .vscode
 .cache
+.sy5-2025-2026-projet-erraid-autotests.nosync
