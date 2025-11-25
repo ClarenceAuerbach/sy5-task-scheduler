@@ -39,6 +39,7 @@ void print_exc(char *path) {
 
         printf("%.24s | %d\n", ctime(&time), ret);
     }
+    close(fd);
 }
 
 /* Print bits for any datatype assumes little endian */

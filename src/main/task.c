@@ -16,14 +16,15 @@
 
 /* Command directory to struct command_t, recursive */
 int extract_cmd(command_t *dest_cmd, char *dir_path) {
+    
     DIR *dir = opendir(dir_path);
-
     if (dir == NULL) {
         perror("cannot open dir : cmd");
         return -1;
     }
+
     struct dirent *entry;
-    int count = 0;
+    int i = 0;
     char path[PATH_MAX];
     while ((entry = readdir(dir))) {
         if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
@@ -71,7 +72,7 @@ int extract_cmd(command_t *dest_cmd, char *dir_path) {
                 }
                 uint32_t str_len = be32toh(len_be);
                 argv[i].length = str_len;
-                argv[i].data = malloc(str_len + 1); /* +1 for NUL */
+                argv[i].data = malloc(str_len + 1); /* +1 for \0 */
                 if (!argv[i].data) {
                     for (uint32_t j = 0; j < i; j++) free(argv[j].data);
                     free(argv);
@@ -99,14 +100,13 @@ int extract_cmd(command_t *dest_cmd, char *dir_path) {
                 closedir(dir);
                 return -1;
             }
-            uint16_t t = 0;
-            ssize_t read_val = read(fd, &t, sizeof(t));
-            if (read_val != (ssize_t)sizeof(t)) {
+            
+            if (read(fd, dest_cmd->type, 2*sizeof(char)) != 2) {
                 close(fd);
                 closedir(dir);
                 return -1;
             }
-            dest_cmd->type = be16toh(t);
+            dest_cmd->type[2] = '\0';
             close(fd);
         }
 
@@ -117,7 +117,7 @@ int extract_cmd(command_t *dest_cmd, char *dir_path) {
         }
         if (S_ISDIR(st.st_mode)) {
             /* First pass we instantiate the necessary amount of memory */
-            if(!count){
+            if(!i){
                 int nb = count_dir_size(dir_path, 1);
                 dest_cmd->cmd = calloc(nb, sizeof(command_t));
             } 
@@ -136,10 +136,10 @@ int extract_cmd(command_t *dest_cmd, char *dir_path) {
             extract_cmd((dest_cmd->cmd) + idx , dir_path_copy);
             free(dir_path_copy);
 
-            count ++;
+            i ++;
         }
     }
-    dest_cmd->nbcmds = (uint32_t)count;
+    dest_cmd->nbcmds = (uint32_t) i;
     closedir(dir);
     return 0;
 }
@@ -152,6 +152,7 @@ int extract_task(task_t *dest_task, char *dir_path) {
         return -1;
     }
 
+    int ret = 0;
     struct dirent *entry;
     char path[PATH_MAX];
     while ((entry = readdir(dir))) {
@@ -173,12 +174,9 @@ int extract_task(task_t *dest_task, char *dir_path) {
                 closedir(dir);
                 return -1;
             }
-            uint64_t *min;
-            uint32_t *hours;
-            uint8_t *days;
-            min = &((dest_task->timings).minutes);
-            hours = &((dest_task->timings).hours);
-            days = &((dest_task->timings).daysofweek);
+            uint64_t *min = &((dest_task->timings).minutes);
+            uint32_t *hours = &((dest_task->timings).hours);
+            uint8_t *days = &((dest_task->timings).daysofweek);
             memcpy(min, timings,  8);
             memcpy(hours, timings+8,  4);
             memcpy(days, timings+12,  1);
@@ -198,6 +196,7 @@ int extract_task(task_t *dest_task, char *dir_path) {
                 return -1;
             }
             strcpy(dir_path_copy, path);
+
             dest_task->command = malloc(sizeof(command_t));
             if (!dest_task->command) {
                 free(dir_path_copy);
@@ -205,7 +204,7 @@ int extract_task(task_t *dest_task, char *dir_path) {
                 return -1;
             }
 
-            extract_cmd(dest_task->command, dir_path_copy);
+            ret += extract_cmd(dest_task->command, dir_path_copy);
 
             free(dir_path_copy);
         }
@@ -213,19 +212,21 @@ int extract_task(task_t *dest_task, char *dir_path) {
     }
 
     closedir(dir);
-    return 0;
+    return ret;
 }
 
 /* Extracts all the tasks in a dir_path directory, calls extract_task */
 int extract_all(task_array_t *task_arr, char *dir_path) {
     task_t **tasks = task_arr->tasks;
-    int ret = 0;
+    
     DIR *dir = opendir(dir_path);
     if (dir == NULL) {
         perror("cannot open tasks");
         return -1;
     }
+
     struct dirent *entry;
+    int ret = 0;
     int i = 0;
     char path[PATH_MAX];
     while ((entry = readdir(dir))) {
@@ -236,6 +237,7 @@ int extract_all(task_array_t *task_arr, char *dir_path) {
 
         char * dir_path_copy = malloc(strlen(path) + 1);
         if (!dir_path_copy) {
+            free(dir_path_copy);
             closedir(dir);
             return -1;
         }
@@ -244,6 +246,7 @@ int extract_all(task_array_t *task_arr, char *dir_path) {
         tasks[i] = malloc(sizeof(task_t));
         if (!tasks[i]) {
             free(dir_path_copy);
+            free(tasks[i]);
             closedir(dir);
             return -1;
         }
@@ -264,7 +267,7 @@ int extract_all(task_array_t *task_arr, char *dir_path) {
 void free_cmd(command_t *cmd) {
     if (!cmd) return;
     /* If it's a simple command, free argv strings and the argv array */
-    if (cmd->type == SI) {
+    if (!strcmp(cmd->type, "SI")) {
         if (cmd->args.argv) {
             for (uint32_t i = 0; i < cmd->args.argc; i++) {
                 if (cmd->args.argv[i].data) {
