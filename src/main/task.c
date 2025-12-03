@@ -16,7 +16,6 @@
 
 /* Command directory to struct command_t, recursive */
 int extract_cmd(command_t *dest_cmd, char *dir_path) {
-    
     DIR *dir = opendir(dir_path);
     if (dir == NULL) {
         perror("cannot open dir : cmd");

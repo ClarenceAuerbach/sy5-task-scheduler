@@ -8,7 +8,7 @@ TEST_SRCS = $(wildcard src/test/*.c)
 MAIN_OBJS = $(MAIN_SRCS:src/main/%.c=obj/main/%.o)
 TEST_BINS = $(TEST_SRCS:src/test/%.c=test_bin/%)
 
-all: erraid test
+all: erraid tadmor test
 
 # Won't be permanent, removed once we have tadmor
 run1: erraid
@@ -41,7 +41,10 @@ test: prepare_tests
 
 prepare_tests: $(TEST_BINS)
 
-erraid: $(MAIN_OBJS) | test_bin
+erraid: $(MAIN_OBJS)
+	$(CC) $^ -o $@
+
+tadmor: $(MAIN_OBJS)
 	$(CC) $^ -o $@
 
 # Linking all main object files to avoid dependency issues

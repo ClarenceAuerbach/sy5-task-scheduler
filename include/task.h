@@ -2,14 +2,10 @@
 #define TASK_H
 #define _GNU_SOURCE
 
-#include<endian.h>
+#include <endian.h>
 #include <stdint.h>
 #include <timing_t.h>
-
-typedef struct {
-    uint32_t length;
-    uint8_t *data;
-} string_t;
+#include <str_util.h>
 
 /* argv[0] contains the name of the command to be called
  * it must exist and be nonempty
