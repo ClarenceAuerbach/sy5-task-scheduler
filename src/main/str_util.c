@@ -30,7 +30,7 @@ void free_string(string_t *string) {
     }
 }
 
-int append(string_t *dest, char *s) {
+int append(string_t *dest, const char *s) {
     size_t src_len = strlen(s);
     size_t min_capacity = dest->length + src_len + 1;
     if (dest->capacity < min_capacity) {
