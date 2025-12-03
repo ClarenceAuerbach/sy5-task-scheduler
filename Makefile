@@ -11,6 +11,10 @@ TEST_BINS = $(TEST_SRCS:src/test/%.c=test_bin/%)
 all: erraid tadmor test
 
 # Won't be permanent, removed once we have tadmor
+
+run: erraid
+	./erraid 
+
 run1: erraid
 	./erraid -r ./src/test/data/exemple-arborescence-1/tmp-username-erraid
 run2: erraid
