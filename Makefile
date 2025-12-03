@@ -1,7 +1,7 @@
 .PHONY: run kill clean test prepare_tests
 
 CC      = gcc
-CFLAGS  = -Wall -Wextra -std=c17 -Iinclude -g
+CFLAGS  = -Wall -Wextra -std=c17 -Iinclude -D_DEFAULT_SOURCE
 
 MAIN_SRCS = $(wildcard src/main/*.c)
 TEST_SRCS = $(wildcard src/test/*.c)
@@ -41,14 +41,14 @@ test: prepare_tests
 
 prepare_tests: $(TEST_BINS)
 
-erraid: $(MAIN_OBJS)
+erraid: $(filter-out obj/main/tadmor.o, $(MAIN_OBJS))
 	$(CC) $^ -o $@
 
-tadmor: $(MAIN_OBJS)
+tadmor: $(filter-out obj/main/erraid.o, $(MAIN_OBJS))
 	$(CC) $^ -o $@
 
 # Linking all main object files to avoid dependency issues
-test_bin/test_%: obj/test/test_%.o $(filter-out obj/main/erraid.o, $(MAIN_OBJS)) | test_bin
+test_bin/test_%: obj/test/test_%.o $(filter-out obj/main/tadmor.o obj/main/erraid.o, $(MAIN_OBJS)) | test_bin
 	$(CC) $^ -o $@
 
 obj/main/%.o: src/main/%.c | obj/main

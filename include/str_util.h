@@ -15,6 +15,8 @@ typedef struct {
 // Builds a string (heap allocated data!) from a char
 string_t *new_string(char *s);
 
+void free_string(string_t *string);
+
 // Appends a char* to a string
 // Returns NULL on error
 int append(string_t *dest, char *s);
