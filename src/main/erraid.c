@@ -28,58 +28,76 @@ static void handle_stop(int sig) {
     stop_requested = 1;
 }
 
-/* Execute a simple command of type SI */
-int exec_simple_command(command_t *com, int fd_out, int fd_err){
-    if (!strcmp(com->type, "SI")){
-        int pid;
-        int status;
-        switch (pid = fork()){
-            case -1:
-                perror ("Error when intializing process");
-                return -1;
-            case 0: {
-                /* allocate array of char* pointers */
-                char **argv = malloc((com->args.argc + 1) * sizeof(char *));
-                for (int i = 0; i < (int) com->args.argc; i++){
-                    
-                    argv[i] = malloc((com->args.argv[i].length + 1) * sizeof(char));
-                    memcpy(argv[i], com->args.argv[i].data, com->args.argv[i].length);
-                    argv[i][com->args.argv[i].length] = '\0';
-
-                    // DEBUG 
-                    // printf("argv[%d] = %s\n", i, argv[i]);
-                }
-                argv[com->args.argc] = NULL; 
-                
-                dup2(fd_out, STDOUT_FILENO);
-                close(fd_out);
-                dup2(fd_err, STDERR_FILENO);
-                close(fd_err);
-                
-                execvp(argv[0], argv);
-
-                perror("execvp failed");
-                exit(127);
-            }
-            default: {
-                int w;
-                do {
-                    w = waitpid(pid, &status, 0);
-                } while (w == -1 && errno == EINTR);
-                if (w == -1) {
-                    perror("waitpid");
-                    return -1;
-                }
-                if (WIFEXITED(status)) {
-                    return WEXITSTATUS(status);  // normal exitcode
-                } else if (WIFSIGNALED(status)) {
-                    return 128 + WTERMSIG(status);  // Killed by a signal 
-                }
-                return -1;
-            }
+void reap_zombies() {
+    int status;
+    while(1) {
+        pid_t p = waitpid(-1, &status, WNOHANG);
+        if (p > 0)  continue;
+        if (p == 0) return;
+        if (p == -1) {
+            if (errno == EINTR) continue;
+            if (errno == ECHILD) return;
+            return;
         }
     }
-    return 0;
+}
+
+/* Execute a simple command of type SI */
+int exec_simple_command(command_t *com, int fd_out, int fd_err){
+    if (strcmp(com->type, "SI")) return -1; // Not simple
+    int pid;
+    int status;
+    switch (pid = fork()){
+        case -1:
+            perror ("Error when intializing process");
+            return -1;
+        case 0: {
+            /* allocate array of char* pointers */
+            char **argv = malloc((com->args.argc + 1) * sizeof(char *));
+            for (int i = 0; i < (int)com->args.argc; i++){
+                argv[i] = com->args.argv[i].data;
+                // DEBUG 
+                // printf("argv[%d] = %s\n", i, argv[i]);
+            }
+            argv[com->args.argc] = NULL; 
+
+            dup2(fd_out, STDOUT_FILENO);
+            close(fd_out);
+            dup2(fd_err, STDERR_FILENO);
+            close(fd_err);
+
+            execvp(argv[0], argv);
+
+            perror("execvp failed");
+            exit(127);
+        }
+        default: {
+            int w;
+            do {
+                w = waitpid(pid, &status, 0);
+            } while (w == -1 && errno == EINTR);
+            if (w == -1) {
+                perror("waitpid");
+                return -1;
+            }
+            if (WIFEXITED(status)) {
+                return WEXITSTATUS(status);  // normal exitcode
+            } else if (WIFSIGNALED(status)) {
+                return 128 + WTERMSIG(status);  // Killed by a signal 
+            }
+            return -1;
+        }
+    }
+}
+
+int exec_command(command_t *com, int fd_out, int fd_err); // Mutually recursive
+
+int exec_sequential_command(command_t *com, int fd_out, int fd_err){
+    int ret = 0;
+    for (unsigned int i=0; i < com->nbcmds; i++){
+        ret = exec_command(&com->cmd[i], fd_out, fd_err);
+    }
+    return ret;
 }
 
 /* TODO Execute commands of every type correctly */
@@ -88,9 +106,7 @@ int exec_command(command_t *com, int fd_out, int fd_err){
     if (!strcmp(com->type, "SQ")){
         // DEBUG
         // printf("\033[35mSequential task started\033[0m\n");
-        for (unsigned int i=0; i < com->nbcmds; i++){
-            ret = exec_command(&com->cmd[i], fd_out, fd_err);
-        }
+        ret = exec_sequential_command(com, fd_out, fd_err);
     } else if (!strcmp(com->type, "SI")){
         //  DEBUG
         // printf("\033[34mSimple task started\033[0m\n");
@@ -99,6 +115,27 @@ int exec_command(command_t *com, int fd_out, int fd_err){
     // DEBUG
     // printf("\033[33mCommand type: %s\033[0m\n", com->type);
     return ret;
+}
+
+void handle_command(command_t *com, int fd_out, int fd_err, int fd_exc){
+    int pid = fork();
+    if (pid > 0) return;
+    if (pid == -1) {
+        perror("Failed fork");
+    }
+    time_t now = time(NULL);
+    uint64_t be_time = htobe64(now);
+
+    uint16_t ret = (uint16_t)exec_command(com, fd_out, fd_err);
+    uint16_t be_ret = htobe16(ret);
+    unsigned char buf[10];
+    memcpy(buf, &be_time, 8);
+    memcpy(buf + 8, &be_ret, 2);
+
+    int w = write(fd_exc, buf, sizeof(buf));
+    if (w != sizeof(buf)) {
+        perror("write times-exitcodes");
+    }
 }
 
 /* Runs every due task and sleeps until next task */
@@ -162,21 +199,8 @@ int run(char *tasks_path, task_array_t * task_array){
 
         // DEBUG
         // printf("\n\033[31mStarting execution!\033[0m\n");
-        ret = exec_command(task_array->tasks[index]->command, fd_out, fd_err);
+        handle_command(task_array->tasks[index]->command, fd_out, fd_err, fd_exc);
 
-
-        now = time(NULL);
-        time_t be_time = htobe64(now);
-        uint16_t be_ret = htobe16(ret);
-
-        if (write(fd_exc, &be_time, 8) != 8) {
-            perror("Write failed");
-            goto cleanup;
-        }
-        if (write(fd_exc, &be_ret, 2) != 2) {
-            perror("Write failed");
-            goto cleanup;
-        }
         close(fd_err);
 		close(fd_out);
         close(fd_exc);
@@ -208,6 +232,7 @@ cleanup:
     if (stdout_path) free(stdout_path);
     if (stderr_path) free(stderr_path);
     if (times_exitc_path) free(times_exitc_path);
+    reap_zombies();
     return ret;
 }
 

@@ -55,8 +55,6 @@ int extract_task(task_t *dest_task, char *dir_path);
 
 int extract_cmd(command_t * dest_cmd, char * cmd_path);
 
-int count_dir_size(char *dir_path, int only_count_dir);
-
 /* Free helpers */
 void free_task_arr(task_array_t *task_arr);
 
