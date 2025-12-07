@@ -1,5 +1,3 @@
-#define _DEFAULT_SOURCE
-
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <stdbool.h>

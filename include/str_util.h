@@ -3,9 +3,9 @@
 
 #include <stddef.h>
 
-// Capacity: bytes allocated for this string
-// Size: number of characters in the string (not including null byte)
 // Data: heap allocated data
+// Length: number of (non null) characters
+// Capacity: bytes allocated for this string
 typedef struct {
     char *data;
     size_t length;

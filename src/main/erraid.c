@@ -1,5 +1,3 @@
-#define _DEFAULT_SOURCE
-
 #include <assert.h>
 #include <bits/types/timer_t.h>
 #include <fcntl.h>
