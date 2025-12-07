@@ -139,7 +139,7 @@ void handle_command(command_t *com, int fd_out, int fd_err, int fd_exc){
 }
 
 /* Runs every due task and sleeps until next task */
-int run(char *tasks_path, task_array_t * task_array){
+int run(char *tasks_path, task_array_t *task_array){
     int ret = 0;
     char *stdout_path = NULL;
     char *stderr_path = NULL;
@@ -151,7 +151,8 @@ int run(char *tasks_path, task_array_t * task_array){
 
     time_t now;
     time_t min_timing;
-    size_t index ;
+    size_t index;
+    int found_task = 0;
 
     /* allocate full PATH_MAX buffers for constructed paths to avoid
      * repeated strcat/strcpy overflows in downstream code that mutates
@@ -168,14 +169,18 @@ int run(char *tasks_path, task_array_t * task_array){
     while(1) {
         /*Look for soonest task to be executed*/ 
         index = 0;
-        min_timing = INT_MAX;
+        found_task = 0;
+        min_timing = -1;
 
         for (int i = 0; i < task_array->length; i++) {
-            if ( task_array->next_times[i] >= 0 && task_array->next_times[i] < min_timing) {
+            time_t t = task_array->next_times[i];
+            if (t >= 0 && (!found_task || t < min_timing)) {
                 index = i;
-                min_timing = task_array->next_times[i];
+                min_timing = t;
+                found_task = 1;
             }
         }
+        if (!found_task) break;
 
         /* Check if the soonest task must be executed*/
         now = time(NULL);
@@ -219,12 +224,14 @@ int run(char *tasks_path, task_array_t * task_array){
     }
     // DEBUG
     // printf("Min timing: %s\n", ctime(&min_timing));
-    printf("Sleep time until next task: %lds\n", min_timing - now);
-    if (min_timing - now > 0) {
-        sleep(min_timing - now);
+    if (!found_task) sleep(100000);
+    else {
+        printf("Sleep time until next task: %lds\n", min_timing - now);
+        if (min_timing - now > 0) {
+            sleep(min_timing - now);
+        }
     }
 
-    goto cleanup;
 cleanup:
     if (fd_out >= 0) close(fd_out);
     if (fd_err >= 0) close(fd_err);
@@ -355,10 +362,9 @@ int main(int argc, char *argv[]) {
 
     /* Main loop: exit when a stop signal is received */
     while(!stop_requested) {
-        ret += run(tasks_path, task_array);
+        ret = run(tasks_path, task_array);
         if(ret != 0){
             perror("An Error occured during run()");
-            goto cleanup;
         }
     }
    

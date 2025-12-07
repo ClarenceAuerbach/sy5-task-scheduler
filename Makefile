@@ -15,14 +15,6 @@ all: erraid tadmor test
 run: erraid
 	./erraid 
 
-run1: erraid
-	./erraid -r ./src/test/data/exemple-arborescence-1/tmp-username-erraid
-run2: erraid
-	./erraid -r ./src/test/data/exemple-arborescence-2/tmp-username-erraid
-run3: erraid
-	./erraid -r ./src/test/data/exemple-arborescence-3/tmp-username-erraid
-run4: erraid
-	./erraid -r ./src/test/data/exemple-arborescence-4/tmp-username-erraid
 
 test: prepare_tests
 	@echo "\033[1mRunning Tests\033[0m"

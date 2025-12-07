@@ -94,6 +94,7 @@ int count_dir_size(char *dir_path , int only_count_dir) {
     DIR *dir = opendir(dir_path);
     if (dir == NULL) {
         perror("cannot open dir path");
+        printf("%s\n", dir_path);
         return -1;
     }
 
