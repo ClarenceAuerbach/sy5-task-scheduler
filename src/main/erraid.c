@@ -109,7 +109,8 @@ int run(char *tasks_path, task_array_t * task_array){
     char *times_exitc_path = NULL;
     int fd_out = -1, fd_err = -1, fd_exc = -1;
 
-    if (task_array->length == 0) return -1;
+    printf("%d\n", task_array->length);
+    if (task_array->length == 0) sleep(1000000);
 
     time_t now;
     time_t min_timing;
@@ -221,6 +222,36 @@ void change_rundir(int argc, char *argv[]){
     } 
 }
 
+int create_pipes(char *request_pipe, char *reply_pipe) {
+
+    char pipes_dir[PATH_MAX+7];
+    snprintf(pipes_dir, PATH_MAX+7, "%s/pipes", RUN_DIRECTORY);
+    
+    // Créer le répertoire des pipes s'il n'existe pas
+    if (mkdir(pipes_dir, 0700) != 0 && errno != EEXIST) {
+        perror("mkdir pipes_dir");
+        return -1;
+    }
+    
+    // Construire les chemins complets
+    snprintf(request_pipe, PATH_MAX+27, "%s/erraid-request-pipe", pipes_dir);
+    snprintf(reply_pipe, PATH_MAX+25, "%s/erraid-reply-pipe", pipes_dir);
+    
+    // Créer le pipe de requête
+    if (mkfifo(request_pipe, 0600) != 0 && errno != EEXIST) {
+        perror("mkfifo request pipe");
+        return -1;
+    }
+    
+    // Créer le pipe de réponse
+    if (mkfifo(reply_pipe, 0600) != 0 && errno != EEXIST) {
+        perror("mkfifo reply pipe");
+        return -1;
+    }
+    
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     if( argc > 3 ) {
         printf("Pass at most two argument: ./erraid -[option] [parameter]\n");
@@ -228,9 +259,22 @@ int main(int argc, char *argv[]) {
     }
 
     change_rundir(argc,argv);
+    /* Creates run directory if it doesn't exist */
+    if (mkdir(RUN_DIRECTORY, 0700) != 0 && errno != EEXIST) {
+        perror("mkdir RUN_DIRECTORY");
+        return -1;
+    }
+
+    char request_pipe[PATH_MAX+27];
+    char reply_pipe[PATH_MAX+25];
+
+    if (create_pipes(request_pipe,reply_pipe) != 0) {
+        fprintf(stderr, "Failed to create pipes\n");
+        return 1;
+    }
 
     /*Double fork() keeping the grand-child, exists in a new session id*/
-    /*
+    
     pid_t child_pid = fork(); 
     assert(child_pid != -1);
     if (child_pid > 0) _exit(EXIT_SUCCESS); 
@@ -240,7 +284,7 @@ int main(int argc, char *argv[]) {
     assert(child_pid != -1);
     if (child_pid > 0 ) exit(EXIT_SUCCESS); 
     puts("");
-    */
+    
     /* install signal handlers to request graceful shutdown */
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));

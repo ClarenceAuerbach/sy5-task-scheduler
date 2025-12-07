@@ -19,7 +19,7 @@ void free_string(string_t *string);
 
 // Appends a char* to a string
 // Returns NULL on error
-int append(string_t *dest, char *s);
+int append(string_t *dest, const char *s);
 
 // Removes n characters from the string
 void truncate_by(string_t *str, int n);
