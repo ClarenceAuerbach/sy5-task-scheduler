@@ -83,6 +83,14 @@ void print_task(task_t task){
     }
 }
 
+/* Prints list of task ids */
+void print_task_ids(int argc, task_t * task[]){
+    printf( "\nTask IDS : \n");
+    for(int i=0 ; i < argc ; i++){
+        printf( "   %d\n", task[i]->id );
+    }
+}
+
 /* Counts the amount of files in a dir if only_count_dir = 0 ,
 *  counts the amount of directories if only_count_dir = 1 */
 int count_dir_size(char *dir_path , int only_count_dir) {

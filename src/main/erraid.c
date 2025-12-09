@@ -136,6 +136,7 @@ void handle_command(command_t *com, int fd_out, int fd_err, int fd_exc){
     if (w != sizeof(buf)) {
         perror("write times-exitcodes");
     }
+    _exit(0);
 }
 
 /* Runs every due task and sleeps until next task */
@@ -146,7 +147,8 @@ int run(char *tasks_path, task_array_t *task_array){
     char *times_exitc_path = NULL;
     int fd_out = -1, fd_err = -1, fd_exc = -1;
 
-    printf("%d\n", task_array->length);
+    // DEBUG
+    // print_task_ids(task_array->length, task_array->tasks);
     if (task_array->length == 0) sleep(1000000);
 
     time_t now;
@@ -164,7 +166,8 @@ int run(char *tasks_path, task_array_t *task_array){
     times_exitc_path = malloc(PATH_MAX);
     if (!times_exitc_path) goto cleanup;
     
-    // DEBUG print_task(*task_array->tasks[0]);
+    // DEBUG 
+    // print_task(*task_array->tasks[0]);
 
     while(1) {
         /*Look for soonest task to be executed*/ 
@@ -211,7 +214,7 @@ int run(char *tasks_path, task_array_t *task_array){
         close(fd_exc);
 
         // DEBUG 
-        // print_exc(times_exitc_path);
+        //print_exc(times_exitc_path);
         
         /* clear strings */
         if (stdout_path[0]) stdout_path[0] = '\0';

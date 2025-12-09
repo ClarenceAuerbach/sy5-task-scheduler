@@ -11,6 +11,8 @@ void print_string(string_t string);
 
 void print_task(task_t task);
 
+void print_task_ids(int argc, task_t * task[]);
+
 int count_dir_size(char *dir_path, int only_count_dir);
 
 #endif

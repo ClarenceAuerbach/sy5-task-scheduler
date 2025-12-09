@@ -1,6 +1,8 @@
 erraid
 tadmor
 test_bin
+src/test/data
+temp
 obj
 .vscode
 .cache
