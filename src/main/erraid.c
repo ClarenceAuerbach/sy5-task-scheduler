@@ -123,11 +123,11 @@ void handle_command(command_t *com, int fd_out, int fd_err, int fd_exc){
     if (pid == -1) {
         perror("Failed fork");
     }
-    time_t now = time(NULL);
-    uint64_t be_time = htobe64(now);
 
     uint16_t ret = (uint16_t)exec_command(com, fd_out, fd_err);
     uint16_t be_ret = htobe16(ret);
+    time_t now = time(NULL);
+    uint64_t be_time = htobe64(now);
     unsigned char buf[10];
     memcpy(buf, &be_time, 8);
     memcpy(buf + 8, &be_ret, 2);
@@ -146,15 +146,14 @@ int run(char *tasks_path, task_array_t *task_array){
     char *stderr_path = NULL;
     char *times_exitc_path = NULL;
     int fd_out = -1, fd_err = -1, fd_exc = -1;
-
-    // DEBUG
-    // print_task_ids(task_array->length, task_array->tasks);
-    if (task_array->length == 0) sleep(1000000);
-
     time_t now;
     time_t min_timing;
     size_t index;
     int found_task = 0;
+
+    // DEBUG
+    // print_task_ids(task_array->length, task_array->tasks);
+    if (task_array->length == 0) goto sleep;
 
     /* allocate full PATH_MAX buffers for constructed paths to avoid
      * repeated strcat/strcpy overflows in downstream code that mutates
@@ -227,14 +226,14 @@ int run(char *tasks_path, task_array_t *task_array){
     }
     // DEBUG
     // printf("Min timing: %s\n", ctime(&min_timing));
-    if (!found_task) sleep(100000);
-    else {
-        printf("Sleep time until next task: %lds\n", min_timing - now);
-        if (min_timing - now > 0) {
-            sleep(min_timing - now);
-        }
+    int sleep_duration = 0;
+sleep:
+    if (!found_task) sleep_duration = 604800; // One week in seconds, somewhat arbitrary value
+    printf("Sleep time until next task: %lds\n", sleep_duration);
+    if (sleep_duration > 0) {
+        sleep(sleep_duration);
     }
-
+    // TODO: poll, check tubes even if no sleep
 cleanup:
     if (fd_out >= 0) close(fd_out);
     if (fd_err >= 0) close(fd_err);
