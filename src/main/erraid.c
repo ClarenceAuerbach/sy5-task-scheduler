@@ -1,19 +1,20 @@
 #include <assert.h>
 #include <bits/types/timer_t.h>
+#include <endian.h>
+#include <errno.h>
 #include <fcntl.h>
-#include <sys/stat.h>
+#include <limits.h>
+#include <poll.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
-#include <limits.h>
-#include <sys/wait.h>
-#include <endian.h>
-#include <signal.h>
-#include <errno.h>
 
 #include "task.h"
 #include "timing_t.h"
@@ -139,9 +140,28 @@ void handle_command(command_t *com, int fd_out, int fd_err, int fd_exc){
     _exit(0);
 }
 
-/* Runs every due task and sleeps until next task */
+/* Waits for a tube with a timeout
+ * ret > 0: tube readable
+ * ret = 0: timeout
+ * ret < 0: error or EINTR
+ */
+int tube_timeout(int tube_fd, int timeout) {
+    if (timeout < 0) timeout = 0;
+
+    struct pollfd p = {
+        .fd = tube_fd,
+        .events = POLL_IN
+    };
+
+    int ret = poll(&p, 1, timeout);
+    return ret;
+}
+
+/* Runs every due task and return the time until next scheduled execution
+ * -1 on error
+ */
 int run(char *tasks_path, task_array_t *task_array){
-    int ret = 0;
+    int ret = -1;
     char *stdout_path = NULL;
     char *stderr_path = NULL;
     char *times_exitc_path = NULL;
@@ -153,7 +173,7 @@ int run(char *tasks_path, task_array_t *task_array){
 
     // DEBUG
     // print_task_ids(task_array->length, task_array->tasks);
-    if (task_array->length == 0) goto sleep;
+    if (task_array->length == 0) goto end;
 
     /* allocate full PATH_MAX buffers for constructed paths to avoid
      * repeated strcat/strcpy overflows in downstream code that mutates
@@ -164,7 +184,7 @@ int run(char *tasks_path, task_array_t *task_array){
     if (!stderr_path) goto cleanup;
     times_exitc_path = malloc(PATH_MAX);
     if (!times_exitc_path) goto cleanup;
-    
+
     // DEBUG 
     // print_task(*task_array->tasks[0]);
 
@@ -191,7 +211,7 @@ int run(char *tasks_path, task_array_t *task_array){
             //printf("\033[32mBreaking out of execution loop\033[0m\n");
             break; // Soonest task is still in the future.
         }
-        
+
         /* Execute the task */ 
         snprintf(stdout_path, PATH_MAX, "%s/%d/stdout", tasks_path, task_array->tasks[index]->id);
         snprintf(stderr_path, PATH_MAX, "%s/%d/stderr", tasks_path, task_array->tasks[index]->id);
@@ -209,12 +229,12 @@ int run(char *tasks_path, task_array_t *task_array){
         handle_command(task_array->tasks[index]->command, fd_out, fd_err, fd_exc);
 
         close(fd_err);
-		close(fd_out);
+        close(fd_out);
         close(fd_exc);
 
         // DEBUG 
         //print_exc(times_exitc_path);
-        
+
         /* clear strings */
         if (stdout_path[0]) stdout_path[0] = '\0';
         if (stderr_path[0]) stderr_path[0] = '\0';
@@ -225,15 +245,12 @@ int run(char *tasks_path, task_array_t *task_array){
         task_array->next_times[index] = next_exec_time(task_array->tasks[index]->timings, now);
     }
     // DEBUG
-    // printf("Min timing: %s\n", ctime(&min_timing));
-    int sleep_duration = 0;
-sleep:
-    if (!found_task) sleep_duration = 604800; // One week in seconds, somewhat arbitrary value
-    printf("Sleep time until next task: %lds\n", sleep_duration);
-    if (sleep_duration > 0) {
-        sleep(sleep_duration);
-    }
-    // TODO: poll, check tubes even if no sleep
+    // printf("Min timing: %s", ctime(&min_timing));
+
+end:
+    if (!found_task) ret = 604800; // One week in seconds, somewhat arbitrary value
+    ret = min_timing-now;
+    printf("Time until next task execution: %d\n", ret);
 cleanup:
     if (fd_out >= 0) close(fd_out);
     if (fd_err >= 0) close(fd_err);
@@ -257,32 +274,38 @@ void change_rundir(int argc, char *argv[]){
 }
 
 int create_pipes(char *request_pipe, char *reply_pipe) {
-
     char pipes_dir[PATH_MAX+7];
     snprintf(pipes_dir, PATH_MAX+7, "%s/pipes", RUN_DIRECTORY);
-    
+
     // Créer le répertoire des pipes s'il n'existe pas
     if (mkdir(pipes_dir, 0700) != 0 && errno != EEXIST) {
         perror("mkdir pipes_dir");
         return -1;
     }
-    
+
     // Construire les chemins complets
     snprintf(request_pipe, PATH_MAX+27, "%s/erraid-request-pipe", pipes_dir);
     snprintf(reply_pipe, PATH_MAX+25, "%s/erraid-reply-pipe", pipes_dir);
-    
+
     // Créer le pipe de requête
     if (mkfifo(request_pipe, 0600) != 0 && errno != EEXIST) {
         perror("mkfifo request pipe");
         return -1;
     }
-    
+
     // Créer le pipe de réponse
     if (mkfifo(reply_pipe, 0600) != 0 && errno != EEXIST) {
         perror("mkfifo reply pipe");
         return -1;
     }
-    
+
+    return 0;
+}
+
+int handle_request(int req_fd, int rep_fd) {
+    (void)req_fd;
+    (void)rep_fd;
+    printf("Request received");
     return 0;
 }
 
@@ -362,11 +385,25 @@ int main(int argc, char *argv[]) {
         task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
     }
 
+    /* ============================================== */
     /* Main loop: exit when a stop signal is received */
+    int req_fd = open(request_pipe, O_WRONLY | O_NONBLOCK);
+    int rep_fd = open(reply_pipe, O_WRONLY | O_NONBLOCK);
+    int status;
     while(!stop_requested) {
         ret = run(tasks_path, task_array);
-        if(ret != 0){
+        if(ret < 0){
             perror("An Error occured during run()");
+        }
+        else {
+            status = tube_timeout(req_fd, ret);
+            if (status < 0) perror("Error with poll");
+            if (status == 0) { // timeout
+                continue;
+            }
+            if (status > 0) { // check tubes
+                handle_request(req_fd, rep_fd);
+            }
         }
     }
    
