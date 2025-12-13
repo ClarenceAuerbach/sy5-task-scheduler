@@ -16,9 +16,10 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "erraid_util.h"
+#include "tube_util.h"
 #include "task.h"
 #include "timing_t.h"
-#include "erraid_util.h"
 
 char RUN_DIRECTORY[PATH_MAX];
 
@@ -302,10 +303,8 @@ int create_pipes(char *request_pipe, char *reply_pipe) {
     return 0;
 }
 
-int handle_request(int req_fd, int rep_fd) {
-    (void)req_fd;
-    (void)rep_fd;
-    printf("Request received");
+int handle_request(int req_fd, int rep_fd, task_array_t tasks) {
+    (void)req_fd; (void)rep_fd; (void)tasks;
     return 0;
 }
 
@@ -331,11 +330,11 @@ int main(int argc, char *argv[]) {
     }
 
     /*Double fork() keeping the grand-child, exists in a new session id*/
-    
+
     pid_t child_pid = fork(); 
     assert(child_pid != -1);
     if (child_pid > 0) _exit(EXIT_SUCCESS); 
-    
+
     setsid();
     child_pid = fork(); 
     assert(child_pid != -1);
@@ -402,7 +401,7 @@ int main(int argc, char *argv[]) {
                 continue;
             }
             if (status > 0) { // check tubes
-                handle_request(req_fd, rep_fd);
+                handle_request(req_fd, rep_fd, task_array);
             }
         }
     }

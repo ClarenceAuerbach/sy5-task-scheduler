@@ -1,30 +1,31 @@
-#ifndef TADMOR_UTIL_H
-#define TADMOR_UTIL_H
+#ifndef TUBE_UTIL_H
+#define TUBE_UTIL_H
 
 #include <stdint.h>
 #include "str_util.h"
 
-// Opcodes pour les requêtes
-#define OP_LIST            0x4c53  // 'LS'
-#define OP_CREATE          0x4352  // 'CR'
-#define OP_COMBINE         0x4342  // 'CB'
-#define OP_REMOVE          0x524d  // 'RM'
-#define OP_TIMES_EXITCODES 0x5458  // 'TX'
-#define OP_STDOUT          0x534f  // 'SO'
-#define OP_STDERR          0x5345  // 'SE'
-#define OP_TERMINATE       0x544d  // 'TM'
+#define U16(a,b) ((uint16_t)((a) << 8 | (b)))
 
-// Types de réponse
-#define ANS_OK    0x4f4b  // 'OK'
-#define ANS_ERROR 0x4552  // 'ER'
+// Opcodes pour les requêtes
+#define OP_LIST            U16('L','S')
+#define OP_CREATE          U16('C','R')
+#define OP_COMBINE         U16('C','B')
+#define OP_TIMES_EXITCODES U16('T','X')
+#define OP_REMOVE          U16('R','M')
+#define OP_STDOUT          U16('S','O')
+#define OP_STDERR          U16('S','E')
+#define OP_TERMINATE       U16('T','M')
+
+// Codes de réponses
+#define ANS_OK             U16('O','K')
+#define ANS_ERROR          U16('E','R')
 
 // Codes d'erreur
-#define ERR_NOT_FOUND 0x4e46  // 'NF'
-#define ERR_NOT_RUN   0x4e52  // 'NR'
+#define ERR_NOT_FOUND      U16('N','F')
+#define ERR_NOT_RUN        U16('N','R')
 
 // Type de combinaison
-#define COMBINE_SEQUENTIAL 0x5351  // 'SQ'
-
+#define COMBINE_SEQUENTIAL U16('S','Q')
 
 /**
  * Write data to a pipe atomically in chunks
@@ -125,4 +126,4 @@ int read_uint32(int fd, uint32_t *val);
  */
 int read_uint64(int fd, uint64_t *val);
 
-#endif // TADMOR_UTIL_H
+#endif
