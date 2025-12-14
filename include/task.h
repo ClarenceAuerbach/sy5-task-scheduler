@@ -36,7 +36,7 @@ typedef struct command_t {
  * Only represents simple or sequential commands for now
  */
 typedef struct {
-    int id;
+    uint64_t id;
     command_t *command;
     timing_t timings;
 } task_t;

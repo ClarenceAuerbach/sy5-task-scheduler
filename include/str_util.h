@@ -17,6 +17,9 @@ string_t *new_string(char *s);
 
 void free_string(string_t *string);
 
+// Returns a pointer to a full copy of string
+string_t *copy_string(string_t *string);
+
 // Appends a char* to a string
 // Returns NULL on error
 int append(string_t *dest, const char *s);

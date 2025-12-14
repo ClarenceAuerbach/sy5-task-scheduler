@@ -30,6 +30,24 @@ void free_string(string_t *string) {
     }
 }
 
+string_t *copy_string(string_t *string) {
+    string_t *res = NULL;
+    char *res_data = NULL;
+
+    res = malloc(sizeof(string_t));
+    if (res == NULL) goto error;
+    res_data = malloc(string->capacity);
+    if (res_data == NULL) goto error;
+
+    res->capacity = string->capacity;
+    res->length = string->length;
+    res->data = res_data;
+error:
+    if (res_data != NULL) free(res_data);
+    if (res != NULL) free(res);
+    return NULL;
+}
+
 int append(string_t *dest, const char *s) {
     size_t src_len = strlen(s);
     size_t min_capacity = dest->length + src_len + 1;

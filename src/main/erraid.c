@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <bits/types/timer_t.h>
+#include <dirent.h>
 #include <endian.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -17,6 +18,7 @@
 #include <unistd.h>
 
 #include "erraid_util.h"
+#include "str_util.h"
 #include "tube_util.h"
 #include "task.h"
 #include "timing_t.h"
@@ -214,9 +216,9 @@ int run(char *tasks_path, task_array_t *task_array){
         }
 
         /* Execute the task */ 
-        snprintf(stdout_path, PATH_MAX, "%s/%d/stdout", tasks_path, task_array->tasks[index]->id);
-        snprintf(stderr_path, PATH_MAX, "%s/%d/stderr", tasks_path, task_array->tasks[index]->id);
-        snprintf(times_exitc_path, PATH_MAX, "%s/%d/times-exitcodes", tasks_path, task_array->tasks[index]->id);
+        snprintf(stdout_path, PATH_MAX, "%s/%ld/stdout", tasks_path, task_array->tasks[index]->id);
+        snprintf(stderr_path, PATH_MAX, "%s/%ld/stderr", tasks_path, task_array->tasks[index]->id);
+        snprintf(times_exitc_path, PATH_MAX, "%s/%ld/times-exitcodes", tasks_path, task_array->tasks[index]->id);
 
         fd_out = open(stdout_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
         if (fd_out == -1) goto cleanup;
@@ -263,7 +265,6 @@ cleanup:
     return ret;
 }
 
-
 /* Instantiating RUN_DIRECTORY with default directory */
 void change_rundir(int argc, char *argv[]){
     if (argc != 3) {
@@ -303,40 +304,88 @@ int create_pipes(char *request_pipe, char *reply_pipe) {
     return 0;
 }
 
-int handle_request(int req_fd, int rep_fd, task_array_t *tasks) {
+string_t *find_task_path(string_t *tasks_path, uint64_t taskid) {
+    string_t *res = copy_string(tasks_path);
+    DIR *task_dir = opendir(res->data);
+    struct dirent *entry = NULL;
+    uint64_t current_taskid = -1;
+    while ((entry = readdir(task_dir))) {
+        current_taskid = strtoull(entry->d_name, NULL, 10);
+        if (current_taskid == taskid) break;
+    }
+    if (current_taskid != taskid) return NULL;
+
+    append(res, "/");
+    append(res, entry->d_name);
+    append(res, "/times_exitcodes");
+    return res;
+}
+
+int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_path) {
+    int ret = -1;
     uint16_t opcode;
-    string_t reply;
+    string_t *reply = new_string("");
 
     if (read(req_fd, &opcode, 2) < 2) return -1;
 
     switch (opcode) {
-    case OP_LIST: {
-        return 0;
-    }
+        case OP_LIST: {
+            return 0;
+        }
 
-    case OP_TIMES_EXITCODES: {
-        uint64_t taskid = read_uint64(req_fd, &taskid);
-        if (taskid < 0) return -1;
-    }
+        case OP_TIMES_EXITCODES: {
+            // TODO: how to deal with fatal errors? write or no write into the tube?
+            // TODO: format final string response
+            uint64_t taskid;
+            int ret = read_uint64(req_fd, &taskid);
+            if (ret < 0) return -1;
 
-    case OP_STDOUT: {
-        return 0;
-    }
+            string_t *times_exitcodes_path = find_task_path(tasks_path, taskid);
+            append(times_exitcodes_path, "/times_exitcodes");
+            int te_fd = open(times_exitcodes_path->data, O_RDONLY);
+            if (te_fd < 0) {
+                perror("Opening times_exitcodes in request handler");
+                free_string(times_exitcodes_path);
+                goto cleanup;
+            }
 
-    case OP_STDERR: {
-        return 0;
-    }
+            char buf[1001] = {0};
+            int nb;
+            while ((nb = read(te_fd, buf, 1000)) > 0) {
+                buf[nb] = '\0';
+                append(reply, buf);
+            }
+            if (reply->length % 10 != 0) {
+                free_string(times_exitcodes_path);
+                goto cleanup;
+            }
+            break;
+        }
 
-    case OP_REMOVE: {
-        return 0;
-    }
+        case OP_STDOUT: {
+            ret = 0;
+            break;
+        }
 
-    case OP_TERMINATE: {
-        stop_requested = 1;
-        return 0;
+        case OP_STDERR: {
+            ret = 0;
+            break;
+        }
+
+        case OP_REMOVE: {
+            ret = 0;
+            break;
+        }
+
+        case OP_TERMINATE: {
+            stop_requested = 1;
+            break;
+        }
     }
-    }
-    return 0;
+    ret = 0;
+cleanup:
+    free_string(reply);
+    return ret;
 }
 
 int main(int argc, char *argv[]) {
@@ -381,28 +430,26 @@ int main(int argc, char *argv[]) {
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
     
-    /* DO NOT CHANGE THE ABOVE */
+    /* ~~~~~~~~ DO NOT CHANGE THE ABOVE ~~~~~~~~ */
 
     task_array_t *task_array = NULL;
-    char *tasks_path = NULL;
+    string_t *tasks_path;
     int ret = 0;
     int task_count = 0;
     
     task_array = malloc(sizeof(task_array_t));
     if (!task_array) goto cleanup;
 
-    tasks_path = malloc(PATH_MAX+7);
-    if (!tasks_path) goto cleanup;
+    tasks_path = new_string(RUN_DIRECTORY);
+    append(tasks_path, "/tasks");
 
-    snprintf(tasks_path, PATH_MAX+7, "%s/tasks", RUN_DIRECTORY);
-
-    task_count = count_dir_size(tasks_path , 1);
+    task_count = count_dir_size(tasks_path->data, 1);
     task_array->length = task_count;
 
     task_array->tasks = malloc(task_count * sizeof(task_t *));
     if (!task_array->tasks) goto cleanup;
 
-    if (extract_all(task_array, tasks_path)){
+    if (extract_all(task_array, tasks_path->data)){
         perror("Extract_all failed");
         goto cleanup;
     }
@@ -421,7 +468,7 @@ int main(int argc, char *argv[]) {
     int rep_fd = open(reply_pipe, O_WRONLY | O_NONBLOCK);
     int status;
     while(!stop_requested) {
-        ret = run(tasks_path, task_array);
+        ret = run(tasks_path->data, task_array);
         if(ret < 0){
             perror("An Error occured during run()");
         }
@@ -432,7 +479,7 @@ int main(int argc, char *argv[]) {
                 continue;
             }
             if (status > 0) { // check tubes
-                handle_request(req_fd, rep_fd, task_array);
+                handle_request(req_fd, rep_fd, task_array, tasks_path);
             }
         }
     }
@@ -444,6 +491,6 @@ int main(int argc, char *argv[]) {
             free_task_arr(task_array);
             free(task_array);
         }
-        if (tasks_path) free(tasks_path);
+        if (tasks_path) free_string(tasks_path);
     return ret;
 }
