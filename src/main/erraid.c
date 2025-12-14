@@ -303,8 +303,44 @@ int create_pipes(char *request_pipe, char *reply_pipe) {
     return 0;
 }
 
-int handle_request(int req_fd, int rep_fd, task_array_t tasks) {
-    (void)req_fd; (void)rep_fd; (void)tasks;
+int reply_ok(string_t *out) {
+    return write_uint16(out, ANS_OK);
+}
+
+static int reply_error(string_t *out, uint16_t err) {
+    if (write_uint16(out, ANS_ERROR) < 0)
+        return -1;
+    return write_uint16(out, err);
+}
+
+int handle_request(int req_fd, int rep_fd, task_array_t *tasks) {
+    uint16_t opcode;
+    string_t reply;
+
+    if (read_uint16(req_fd, &opcode) < 0)
+        return -1;
+
+    switch (opcode) {
+
+    case OP_LIST: {
+    }
+
+    case OP_TIMES_EXITCODES: {
+    }
+
+    case OP_STDOUT: {
+    }
+
+    case OP_STDERR: {
+    }
+
+    case OP_REMOVE: {
+    }
+
+    case OP_TERMINATE: {
+    }
+
+    }
     return 0;
 }
 
