@@ -303,43 +303,38 @@ int create_pipes(char *request_pipe, char *reply_pipe) {
     return 0;
 }
 
-int reply_ok(string_t *out) {
-    return write_uint16(out, ANS_OK);
-}
-
-static int reply_error(string_t *out, uint16_t err) {
-    if (write_uint16(out, ANS_ERROR) < 0)
-        return -1;
-    return write_uint16(out, err);
-}
-
 int handle_request(int req_fd, int rep_fd, task_array_t *tasks) {
     uint16_t opcode;
     string_t reply;
 
-    if (read_uint16(req_fd, &opcode) < 0)
-        return -1;
+    if (read(req_fd, &opcode, 2) < 2) return -1;
 
     switch (opcode) {
-
     case OP_LIST: {
+        return 0;
     }
 
     case OP_TIMES_EXITCODES: {
+        uint64_t taskid = read_uint64(req_fd, &taskid);
+        if (taskid < 0) return -1;
     }
 
     case OP_STDOUT: {
+        return 0;
     }
 
     case OP_STDERR: {
+        return 0;
     }
 
     case OP_REMOVE: {
+        return 0;
     }
 
     case OP_TERMINATE: {
+        stop_requested = 1;
+        return 0;
     }
-
     }
     return 0;
 }

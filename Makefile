@@ -58,7 +58,8 @@ obj/test obj/main test_bin:
 
 distclean:
 	rm -rf bin obj
-	rm erraid
+	rm -f erraid
+	rm -f tadmor
 
 kill : 
 	@PID=$$(ps aux | grep './erraid' | awk '{print $$2}'); \
