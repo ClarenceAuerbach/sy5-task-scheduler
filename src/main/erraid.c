@@ -400,18 +400,15 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
             write32(reply, nbruns);
             
             // Lire et envoyer chaque entrée
-            char buf[1000];
+            int bufsize = 1024;
+            char buf[bufsize];
             int nb;
             int remaining = st.st_size;
-            while ((nb = read(te_fd, buf, remaining)) > 0) {
-                for (int i = 0; i < nb / 10; i++) {
-                    time_t *exec_time = (time_t*)(buf+10*i);
-                    *exec_time = htobe64(*exec_time);
-                    uint16_t *ret = (uint16_t*)(buf+10*i+8);
-                    *ret = htobe16(*ret);
-                    appendn(reply, buf, nb);
-                }
+            int min = remaining > bufsize ? bufsize : remaining;
+            while ((nb = read(te_fd, buf, min)) > 0) {
+                appendn(reply, buf, nb);
                 remaining -= nb;
+                min = remaining > bufsize ? bufsize : remaining;
             }
             
             close(te_fd);
