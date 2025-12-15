@@ -613,7 +613,7 @@ int main(int argc, char *argv[]) {
     /* ============================================== */
     /* Main loop: exit when a stop signal is received */
     
-    req_fd = open(request_pipe, O_RDONLY | O_NONBLOCK);
+    req_fd = open(request_pipe, O_RDWR | O_NONBLOCK);
     rep_fd = open(reply_pipe, O_WRONLY | O_NONBLOCK);
 
     int status;

@@ -325,7 +325,7 @@ int main(int argc, char **argv) {
     opterr = 1;
     optind = 1;
 
-    while ((opt = getopt(argc, argv, "lqr:x:o:e:")) != -1) {
+    while ((opt = getopt(argc, argv, "lqr:x:o:e:p:")) != -1) {
         switch (opt) {
 
         case 'l':
@@ -357,6 +357,9 @@ int main(int argc, char **argv) {
         case 'e': {
             uint64_t taskid = strtoull(optarg, NULL, 10);
             ret = handle_output(req_fd, rep_fd, taskid, 0);
+            break;
+        }
+        case 'p': {
             break;
         }
 
