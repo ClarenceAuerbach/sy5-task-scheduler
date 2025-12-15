@@ -266,6 +266,10 @@ int handle_terminate(int req_fd, int rep_fd) {
         free_string(msg);
         return -1;
     }
+    uint16_t tmp = OP_TERMINATE;
+    
+    printf("%c%c\n", *((char*) &tmp) ,*(((char*) &tmp) +1));
+    printf("%s\n", msg->data);
     
     if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
         free_string(msg);
@@ -273,9 +277,6 @@ int handle_terminate(int req_fd, int rep_fd) {
     }
     free_string(msg);
 
-    
-    fcntl(req_fd, F_SETFL, 0);
-    fcntl(rep_fd, F_SETFL, 0);
     // Read response
     uint16_t anstype;
     if (read_uint16(rep_fd, &anstype) != 0) return -1;
@@ -295,20 +296,16 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Usage: tadmor [-c|-l|-r|-x|-o|-e|-s|-q] ...\n");
         return 1;
     }
-    
-    
-    
+
     int opt;
     int ret = 0;
     int req_fd = -1;
     int rep_fd = -1;
-    /* ===== 1st pass for -p ===== */
-    opterr = 0;       
-    optind = 1;
 
-    while ((opt = getopt(argc, argv, "p:")) != -1) {
-        if (opt == 'p') {
-            ret = handle_pipe_dir(&req_fd, &rep_fd, optarg);
+    /* Check for -p option */
+    for( int i = 0; i<argc ; i++){
+        if (!strcmp(argv[i], "-p")) {
+            ret = handle_pipe_dir(&req_fd, &rep_fd, argv[i+1]);
             if (ret != 0) {
                 return ret;
             }
@@ -321,18 +318,17 @@ int main(int argc, char **argv) {
         if(ret) return -1;
     }
 
-    /* ===== 2nd pass for other options ===== */
-    opterr = 1;
-    optind = 1;
+    fcntl(rep_fd, 0);
 
     while ((opt = getopt(argc, argv, "lqr:x:o:e:p:")) != -1) {
+        
         switch (opt) {
-
         case 'l':
             ret = handle_list(req_fd, rep_fd);
             break;
 
         case 'q':
+            printf("%c\n", opt);
             ret = handle_terminate(req_fd, rep_fd);
             break;
 

@@ -155,15 +155,7 @@ int tube_timeout(int tube_fd, int timeout) {
         .fd = tube_fd,
         .events = POLLIN
     };
-    
-    int ret;
-    /* Retry poll on EINTR (signal interruption) */
-    while (1) {
-        ret = poll(&p, 1, timeout);
-        if (ret >= 0) return ret;           /* success or timeout */
-        if (errno != EINTR) return ret;     /* real error */
-        /* EINTR: signal interrupted poll, retry */
-    }
+    return poll(&p, 1, timeout);
 }
 
 /* Runs every due task and return the time until next scheduled execution
@@ -326,37 +318,13 @@ void command_to_string(command_t *cmd, string_t *result) {
 
 int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_path) {
     uint16_t opcode;
-    unsigned char buf[2];
     
     printf("In handle_request\n");
-    /* Retry read on EINTR (signal interruption) */
-    ssize_t r;
-    while (1) {
-        r = read(req_fd, buf, 2);
-        if (r >= 0) break;              /* success: 0 or some bytes read */
-        if (errno != EINTR) break;      /* real error */
-        /* EINTR: signal interrupted read, retry */
-    }
-    
-    printf("Finished reading\n");
-    
-    if (r == 0) {
-        printf("r == 0\n");
-        return 0; 
-    }
-    
-    if (r < 0) {
-        printf("r < 0\n");
-        return 0;   /* real error on read, return gracefully */
-    }
 
-    if (r != 2) {
-        perror("read opcode");
-        return -1;
-    }
+    int r = read_uint16(req_fd, &opcode);
+    if (r == -1) perror("Reading opcode");
     
-    memcpy(&opcode, buf, 2);
-    opcode = be16toh(opcode);
+    printf("Finished reading opcode\n");
     
     printf("Received opcode: 0x%04x\n", opcode);
     
@@ -503,8 +471,6 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
         case OP_TERMINATE: {
             uint16_t ans_type = ANS_OK;
             write(rep_fd, &ans_type, 2);
-
-            printf("answer : %d \n", ans_type);
             stop_requested = 1;
             return 1;
         }
@@ -631,8 +597,7 @@ int main(int argc, char *argv[]) {
         }
         
         printf("Time until next task execution: %ds\n", ret);
-        sleep(1);
-
+        
         status = tube_timeout(req_fd, ret * 1000);
         if (status < 0) {
             perror("Error with poll");

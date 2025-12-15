@@ -22,23 +22,62 @@ int write_atomic_chunks(int fd, char *s, size_t len) {
 }
 
 int write_uint16(string_t *msg, uint16_t val) {
-    char tmp[2];
-    if(memcpy(tmp, &val, 2)) return -1;
+    uint16_t be_val = htobe16(val);
+    char tmp[3];
+    memcpy(tmp, &be_val, 2);
+    tmp[2] = '\0';
     append(msg, tmp);
     return 0;
 }
 
 int write_uint32(string_t *msg, uint32_t val) {
-    char tmp[4];
-    if(memcpy(tmp, &val, 4)) return -1;
+    uint32_t be_val = htobe32(val);
+    char tmp[5];
+    memcpy(tmp, &be_val, 4);
+    tmp[4] = '\0';
     append(msg, tmp);
     return 0;
 }
 
 int write_uint64(string_t *msg, uint64_t val) {
-    char tmp[8];
-    if(memcpy(tmp, &val, 8)) return -1;
+    uint64_t be_val = htobe64(val);
+    char tmp[9];
+    memcpy(tmp, &be_val, 8);
+    tmp[8] = '\0';
     append(msg, tmp);
+    return 0;
+}
+
+int read_uint16(int fd, uint16_t *val) {
+    unsigned char buf[2];
+    ssize_t r = read(fd, buf, 2);
+    if (r != 2) return -1;
+    
+    uint16_t be_val;
+    memcpy(&be_val, buf, 2);
+    *val = be16toh(be_val);
+    return 0;
+}
+
+int read_uint32(int fd, uint32_t *val) {
+    unsigned char buf[4];
+    ssize_t r = read(fd, buf, 4);
+    if (r != 4) return -1;
+    
+    uint32_t be_val;
+    memcpy(&be_val, buf, 4);
+    *val = be32toh(be_val);
+    return 0;
+}
+
+int read_uint64(int fd, uint64_t *val) {
+    unsigned char buf[8];
+    ssize_t r = read(fd, buf, 8);
+    if (r != 8) return -1;
+    
+    uint64_t be_val;
+    memcpy(&be_val, buf, 8);
+    *val = be64toh(be_val);
     return 0;
 }
 
@@ -164,18 +203,22 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
     
     // Ouvrir le pipe de requête
     append(path, "/erraid-request-pipe");
-    *req_fd = open(path->data, O_WRONLY | O_NONBLOCK);
+
+    *req_fd = open(path->data, O_WRONLY );
+
     if (*req_fd < 0) {
         perror("open request pipe");
         free_string(path);
         return -1;
     }
     
+    
     // Ouvrir le pipe de réponse
     truncate_to(path, base_len);
     append(path, "/erraid-reply-pipe");
 
     *rep_fd = open(path->data, O_RDONLY | O_NONBLOCK);
+
     if (*rep_fd < 0) {
         perror("open reply pipe");
         close(*req_fd);
@@ -184,39 +227,6 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
     }
     
     free_string(path);
-    return 0;
-}
-
-int read_uint16(int fd, uint16_t *val) {
-    unsigned char buf[2];
-    ssize_t r = read(fd, buf, 2);
-    if (r != 2) return -1;
-    
-    uint16_t be_val;
-    memcpy(&be_val, buf, 2);
-    *val = be16toh(be_val);
-    return 0;
-}
-
-int read_uint32(int fd, uint32_t *val) {
-    unsigned char buf[4];
-    ssize_t r = read(fd, buf, 4);
-    if (r != 4) return -1;
-    
-    uint32_t be_val;
-    memcpy(&be_val, buf, 4);
-    *val = be32toh(be_val);
-    return 0;
-}
-
-int read_uint64(int fd, uint64_t *val) {
-    unsigned char buf[8];
-    ssize_t r = read(fd, buf, 8);
-    if (r != 8) return -1;
-    
-    uint64_t be_val;
-    memcpy(&be_val, buf, 8);
-    *val = be64toh(be_val);
     return 0;
 }
 

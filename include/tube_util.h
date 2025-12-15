@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include "str_util.h"
 
-#define U16(a,b) ((uint16_t)((a) << 8 | (b)))
+#define U16(a,b) ((uint16_t)((a) << 8 | (b))) // Little endian
 
 // Opcodes pour les requêtes
 #define OP_LIST            U16('L','S')
