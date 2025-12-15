@@ -157,12 +157,14 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
         append(path, "/erraid/pipes");
     } else {
         append(path, pipes_dir);
+        append(path, "/pipes");
     }
     
     size_t base_len = path->length;
     
     // Ouvrir le pipe de requête
     append(path, "/erraid-request-pipe");
+    printf("%s\n", path->data);
     *req_fd = open(path->data, O_WRONLY | O_NONBLOCK);
     if (*req_fd < 0) {
         perror("open request pipe");

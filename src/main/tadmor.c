@@ -10,6 +10,7 @@
 
 #include "str_util.h"
 #include "tube_util.h"
+#include <bits/getopt_core.h>
 
 /**
  * Send a LIST request and display response
@@ -282,59 +283,92 @@ int handle_terminate(int req_fd, int rep_fd) {
     return 0;
 }
 
+int handle_pipe_dir(int *req_fd, int *rep_fd, char * path){
+    if (open_pipes(path, req_fd, rep_fd) != 0) {
+        return 1;
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "Usage: tadmor [-c|-l|-r|-x|-o|-e|-s|-q] ...\n");
         return 1;
     }
     
-    int req_fd, rep_fd;
-    if (open_pipes(NULL, &req_fd, &rep_fd) != 0) {
-        return 1;
-    }
-
-    int ret = 0;
     
-    // Handle -l (LIST)
-    if (strcmp(argv[1], "-l") == 0) {
-        ret = handle_list(req_fd, rep_fd);
-    }
-    // Handle -q (TERMINATE)
-    else if (strcmp(argv[1], "-q") == 0) {
-        ret = handle_terminate(req_fd, rep_fd);
-    }
-    // All other options require a TASKID
-    else if (argc < 3) {
-        fprintf(stderr, "%s requires TASKID\n", argv[1]);
-        ret = 1;
-    }
-    // Handle -r (REMOVE)
-    else if (strcmp(argv[1], "-r") == 0) {
-        uint64_t taskid = strtoull(argv[2], NULL, 10);
-        ret = handle_remove(req_fd, rep_fd, taskid);
-    }
-    // Handle -x (TIMES_EXITCODES)
-    else if (strcmp(argv[1], "-x") == 0) {
-        uint64_t taskid = strtoull(argv[2], NULL, 10);
-        ret = handle_times_exitcodes(req_fd, rep_fd, taskid);
-    }
-    // Handle -o (STDOUT)
-    else if (strcmp(argv[1], "-o") == 0) {
-        uint64_t taskid = strtoull(argv[2], NULL, 10);
-        ret = handle_output(req_fd, rep_fd, taskid, 1);
-    }
-    // Handle -e (STDERR)
-    else if (strcmp(argv[1], "-e") == 0) {
-        uint64_t taskid = strtoull(argv[2], NULL, 10);
-        ret = handle_output(req_fd, rep_fd, taskid, 0);
-    }
-    // Invalid option
-    else {
-        fprintf(stderr, "Invalid option: %s\n", argv[1]);
-        ret = 1;
+    
+    int opt;
+    int ret = 0;
+    int req_fd = -1;
+    int rep_fd = -1;
+    /* ===== 1st pass for -p ===== */
+    opterr = 0;       
+    optind = 1;
+
+    while ((opt = getopt(argc, argv, "p:")) != -1) {
+        if (opt == 'p') {
+            ret = handle_pipe_dir(&req_fd, &rep_fd, optarg);
+            if (ret != 0) {
+                return ret;
+            }
+            break;    
+        }
     }
 
+    if (req_fd == -1 || rep_fd == -1) {
+        int ret = open_pipes(NULL, &req_fd, &rep_fd);
+        if(ret) return -1;
+    }
+
+    /* ===== 2nd pass for other options ===== */
+    opterr = 1;
+    optind = 1;
+
+    while ((opt = getopt(argc, argv, "lqr:x:o:e:")) != -1) {
+        switch (opt) {
+
+        case 'l':
+            ret = handle_list(req_fd, rep_fd);
+            break;
+
+        case 'q':
+            ret = handle_terminate(req_fd, rep_fd);
+            break;
+
+        case 'r': {
+            uint64_t taskid = strtoull(optarg, NULL, 10);
+            ret = handle_remove(req_fd, rep_fd, taskid);
+            break;
+        }
+
+        case 'x': {
+            uint64_t taskid = strtoull(optarg, NULL, 10);
+            ret = handle_times_exitcodes(req_fd, rep_fd, taskid);
+            break;
+        }
+
+        case 'o': {
+            uint64_t taskid = strtoull(optarg, NULL, 10);
+            ret = handle_output(req_fd, rep_fd, taskid, 1);
+            break;
+        }
+
+        case 'e': {
+            uint64_t taskid = strtoull(optarg, NULL, 10);
+            ret = handle_output(req_fd, rep_fd, taskid, 0);
+            break;
+        }
+
+        default:
+            fprintf(stderr,
+                "Usage: tadmor [-p PATH] [-l|-q|-r TASKID|-x TASKID|-o TASKID|-e TASKID]\n");
+            return 1;
+        }
+    }
+    
     close(req_fd);
     close(rep_fd);
+
     return ret;
 }
