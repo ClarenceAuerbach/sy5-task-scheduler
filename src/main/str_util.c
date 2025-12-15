@@ -77,7 +77,7 @@ int appendn(string_t *dest, const char *s, int n) {
         dest->capacity = new_capacity;
     }
 
-    memcpy(dest->data + dest->length, &s, n);
+    memcpy(dest->data + dest->length, s, n);
     dest->length += n;
     return 0;
 }

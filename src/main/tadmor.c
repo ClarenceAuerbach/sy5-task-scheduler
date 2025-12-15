@@ -12,9 +12,7 @@
 #include "tube_util.h"
 #include <bits/getopt_core.h>
 
-/**
- * Send a LIST request and display response
- */
+/* Send a LIST request and display response */
 int handle_list(int req_fd, int rep_fd) {
     string_t *msg = new_string("");
     if (!msg) return -1;
@@ -55,12 +53,15 @@ int handle_list(int req_fd, int rep_fd) {
         uint64_t taskid;
         if (read64(rep_fd, &taskid) != 0) return -1;
         
-        // Read TIMING
+        // Read TIMING (8 bytes minutes + 4 bytes hours + 1 byte days)
         uint64_t minutes;
         uint32_t hours;
         uint8_t days;
+        
         if (read64(rep_fd, &minutes) != 0) return -1;
         if (read32(rep_fd, &hours) != 0) return -1;
+        
+        // Lire le byte des jours
         unsigned char dbuf[1];
         if (read(rep_fd, dbuf, 1) != 1) return -1;
         days = dbuf[0];
@@ -68,11 +69,19 @@ int handle_list(int req_fd, int rep_fd) {
         // Read COMMANDLINE
         uint32_t cmdlen;
         if (read32(rep_fd, &cmdlen) != 0) return -1;
+        
         char *cmdline = malloc(cmdlen + 1);
         if (!cmdline) return -1;
-        if (read(rep_fd, cmdline, cmdlen) != (ssize_t)cmdlen) {
-            free(cmdline);
-            return -1;
+        
+        // Lire toute la commandline
+        size_t total = 0;
+        while (total < cmdlen) {
+            ssize_t n = read(rep_fd, cmdline + total, cmdlen - total);
+            if (n <= 0) {
+                free(cmdline);
+                return -1;
+            }
+            total += n;
         }
         cmdline[cmdlen] = '\0';
         
@@ -98,9 +107,7 @@ int handle_list(int req_fd, int rep_fd) {
     return 0;
 }
 
-/**
- * Send TIMES_EXITCODES request and display response
- */
+/* Send TIMES_EXITCODES request and display response */
 int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
     string_t *msg = new_string("");
     if (!msg) return -1;
@@ -130,8 +137,9 @@ int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
         if (read16(rep_fd, &errcode) != 0) return -1;
         if (errcode == ERR_NOT_FOUND) {
             fprintf(stderr, "Task not found\n");
+        } else {
+            fprintf(stderr, "Unknown error\n");
         }
-        fprintf(stderr, "Unknown error\n");
         return -1;
     }
     
@@ -141,28 +149,57 @@ int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
     
     // Read and display each run
     for (uint32_t i = 0; i < nbruns; i++) {
-        uint64_t time;
-        uint16_t exitcode;
+        // Lire 8 bytes pour timestamp
+        uint64_t be_timestamp;
+        unsigned char time_buf[8];
+        size_t total = 0;
+        while (total < 8) {
+            ssize_t n = read(rep_fd, time_buf + total, 8 - total);
+            if (n <= 0) {
+                fprintf(stderr, "Error reading timestamp\n");
+                return -1;
+            }
+            total += n;
+        }
+        memcpy(&be_timestamp, time_buf, 8);
+        uint64_t timestamp = be64toh(be_timestamp);
         
-        if (read64(rep_fd, &time) != 0) return -1;
-        if (read16(rep_fd, &exitcode) != 0) return -1;
+        uint16_t be_exitcode;
+        unsigned char exit_buf[2];
+        total = 0;
+        while (total < 2) {
+            ssize_t n = read(rep_fd, exit_buf + total, 2 - total);
+            if (n <= 0) {
+                fprintf(stderr, "Error reading exitcode\n");
+                return -1;
+            }
+            total += n;
+        }
+        memcpy(&be_exitcode, exit_buf, 2);
+        uint16_t exitcode = be16toh(be_exitcode);
         
-        time_t t = (time_t)time;
+        // Convert timestamp to local time
+        time_t t = (time_t)timestamp;
         struct tm *tm = localtime(&t);
-        if (!tm) continue;
+        if (!tm) {
+            fprintf(stderr, "Error converting time for timestamp %lu\n", timestamp);
+            continue;
+        }
         
+        // Format: YYYY-MM-DD HH:MM:SS exitcode
         printf("%04d-%02d-%02d %02d:%02d:%02d %u\n",
-               tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
-               tm->tm_hour, tm->tm_min, tm->tm_sec,
+               tm->tm_year + 1900, 
+               tm->tm_mon + 1, 
+               tm->tm_mday,
+               tm->tm_hour, 
+               tm->tm_min, 
+               tm->tm_sec,
                exitcode);
     }
     
     return 0;
 }
-
-/**
- * Send STDOUT or STDERR request and display response
- */
+/* Send STDOUT or STDERR request and display response */
 int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
     string_t *msg = new_string("");
     
@@ -227,9 +264,7 @@ int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
     return 0;
 }
 
-/**
- * Send REMOVE request
- */
+/* Send REMOVE request */
 int handle_remove(int req_fd, int rep_fd, uint64_t taskid) {
     string_t *msg = new_string("");
     if (!msg) return -1;
@@ -266,9 +301,7 @@ int handle_remove(int req_fd, int rep_fd, uint64_t taskid) {
     return 0;
 }
 
-/**
- * Send TERMINATE request
- */
+/* Send TERMINATE request */
 int handle_terminate(int req_fd, int rep_fd) {
     string_t *msg = new_string("");
     if (!msg) return -1;
@@ -329,12 +362,12 @@ int main(int argc, char **argv) {
     int flags = fcntl(rep_fd, F_GETFL);
     if (flags == -1) {
         perror("fcntl F_GETFL");
-        return -1;
+        goto mainend;
     }
 
     if (fcntl(rep_fd, F_SETFL, flags & ~O_NONBLOCK) == -1) {
         perror("fcntl F_SETFL");
-        return -1;
+        goto mainend;
     }
     
 
@@ -383,6 +416,8 @@ int main(int argc, char **argv) {
         }
     }
     
+mainend:
+
     close(req_fd);
     close(rep_fd);
 

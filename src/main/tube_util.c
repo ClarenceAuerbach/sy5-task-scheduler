@@ -40,13 +40,21 @@ int write64(string_t *msg, uint64_t val) {
 }
 
 int read16(int fd, uint16_t *val) {
-    char buf[2];
-    ssize_t r = read(fd, buf, 2);
+    unsigned char buf[2];
+    size_t total = 0;
     
-    if (r != 2) {
-        printf("%zd\n", r);
-        perror("read ok");
-        return -1;
+    while (total < 2) {
+        ssize_t r = read(fd, buf + total, 2 - total);
+        if (r < 0) {
+            perror("read16");
+            return -1;
+        }
+        if (r == 0) {
+            // EOF
+            fprintf(stderr, "read16: unexpected EOF\n");
+            return -1;
+        }
+        total += r;
     }
     
     uint16_t be_val;
@@ -57,8 +65,21 @@ int read16(int fd, uint16_t *val) {
 
 int read32(int fd, uint32_t *val) {
     unsigned char buf[4];
-    ssize_t r = read(fd, buf, 4);
-    if (r != 4) return -1;
+    size_t total = 0;
+    
+    while (total < 4) {
+        ssize_t r = read(fd, buf + total, 4 - total);
+        if (r < 0) {
+            perror("read32");
+            return -1;
+        }
+        if (r == 0) {
+            // EOF
+            fprintf(stderr, "read32: unexpected EOF\n");
+            return -1;
+        }
+        total += r;
+    }
     
     uint32_t be_val;
     memcpy(&be_val, buf, 4);
@@ -68,8 +89,21 @@ int read32(int fd, uint32_t *val) {
 
 int read64(int fd, uint64_t *val) {
     unsigned char buf[8];
-    ssize_t r = read(fd, buf, 8);
-    if (r != 8) return -1;
+    size_t total = 0;
+    
+    while (total < 8) {
+        ssize_t r = read(fd, buf + total, 8 - total);
+        if (r < 0) {
+            perror("read64");
+            return -1;
+        }
+        if (r == 0) {
+            // EOF
+            fprintf(stderr, "read64: unexpected EOF\n");
+            return -1;
+        }
+        total += r;
+    }
     
     uint64_t be_val;
     memcpy(&be_val, buf, 8);
@@ -118,10 +152,8 @@ int write_timing(string_t *msg, const char *minutes, const char *hours,
         return 0;
     }
     
-    // Parser et encoder les minutes (0-59)
     uint64_t minutes_bitmap;
     if (!minutes) {
-        // Par défaut: toutes les minutes
         minutes_bitmap = 0;
         for (int i = 0; i < 60; i++) {
             minutes_bitmap |= (1ULL << i);
@@ -131,10 +163,8 @@ int write_timing(string_t *msg, const char *minutes, const char *hours,
     }
     if (write64(msg, minutes_bitmap) != 0) return -1;
     
-    // Parser et encoder les heures (0-23)
     uint32_t hours_bitmap;
     if (!hours) {
-        // Par défaut: toutes les heures
         hours_bitmap = 0;
         for (int i = 0; i < 24; i++) {
             hours_bitmap |= (1U << i);
@@ -144,10 +174,8 @@ int write_timing(string_t *msg, const char *minutes, const char *hours,
     }
     if (write32(msg, hours_bitmap) != 0) return -1;
     
-    // Parser et encoder les jours (0-6: dimanche-samedi)
     uint8_t days_bitmap;
     if (!days) {
-        // Par défaut: tous les jours
         days_bitmap = 0x7F;  // bits 0-6 à 1
     } else {
         days_bitmap = (uint8_t)parse_timing_field(days, 6);
@@ -197,7 +225,6 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
     
     size_t base_len = path->length;
     
-    // Ouvrir le pipe de requête
     append(path, "/erraid-request-pipe");
 
     *req_fd = open(path->data, O_WRONLY );
@@ -209,7 +236,6 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
     }
     
     
-    // Ouvrir le pipe de réponse
     truncate_to(path, base_len);
     append(path, "/erraid-reply-pipe");
 
@@ -226,7 +252,6 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
     return 0;
 }
 
-// À ajouter dans tube_util.c
 void bitmap_to_string(uint64_t bitmap, int max_val, char *buf, size_t bufsize) {
     int all_set = 1;
     for (int i = 0; i <= max_val; i++) {

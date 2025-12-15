@@ -266,23 +266,19 @@ int create_pipes(char *request_pipe, char *reply_pipe) {
     char pipes_dir[PATH_MAX+7];
     snprintf(pipes_dir, PATH_MAX+7, "%s/pipes", RUN_DIRECTORY);
 
-    // Créer le répertoire des pipes s'il n'existe pas
     if (mkdir(pipes_dir, 0700) != 0 && errno != EEXIST) {
         perror("mkdir pipes_dir");
         return -1;
     }
 
-    // Construire les chemins complets
     snprintf(request_pipe, PATH_MAX+27, "%s/erraid-request-pipe", pipes_dir);
     snprintf(reply_pipe, PATH_MAX+25, "%s/erraid-reply-pipe", pipes_dir);
 
-    // Créer le pipe de requête
     if (mkfifo(request_pipe, 0600) != 0 && errno != EEXIST) {
         perror("mkfifo request pipe");
         return -1;
     }
 
-    // Créer le pipe de réponse
     if (mkfifo(reply_pipe, 0600) != 0 && errno != EEXIST) {
         perror("mkfifo reply pipe");
         return -1;
@@ -330,34 +326,28 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
     
     switch(opcode) {
         case OP_LIST: {
-            // Écrire ANSTYPE = 'OK'
-            uint16_t anstype = htobe16(ANS_OK);
-            write(rep_fd, &anstype, 2);
+            write16(reply, ANS_OK);
             
-            // Écrire NBTASKS
-            uint32_t nbtasks = htobe32(tasks->length);
-            write(rep_fd, &nbtasks, 4);
+            write32(reply, (uint32_t)tasks->length);
             
-            // Pour chaque tâche
             for (int i = 0; i < tasks->length; i++) {
-                // TASKID
-                uint64_t taskid = htobe64(tasks->tasks[i]->id);
-                write(rep_fd, &taskid, 8);
+                write64(reply, tasks->tasks[i]->id);
                 
                 // TIMING
                 timing_t *t = &tasks->tasks[i]->timings;
-                uint64_t min_be = htobe64(t->minutes);
-                uint32_t hrs_be = htobe32(t->hours);
-                uint8_t days_be = t->daysofweek;
-                write(rep_fd, &min_be, 8);
-                write(rep_fd, &hrs_be, 4);
-                write(rep_fd, &days_be, 1);
-
+                write64(reply, t->minutes);   // uint64 big-endian
+                write32(reply, t->hours);      // uint32 big-endian
+                
+                char days_byte = (char)t->daysofweek;
+                append(reply, &days_byte);
+                
                 string_t *cmdline = new_string("");
                 command_to_string(tasks->tasks[i]->command, cmdline);
-                uint32_t len = htobe32(cmdline->length);
-                write(rep_fd, &len, 4);
-                write(rep_fd, cmdline->data, cmdline->length);
+                
+                write32(reply, (uint32_t)cmdline->length);
+                
+                appendn(reply, cmdline->data, cmdline->length);
+                
                 free_string(cmdline);
             }
             break;
@@ -377,38 +367,43 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
                 break;
             }
             
-            // Construire le chemin du fichier times-exitcodes
             char te_path[PATH_MAX];
             snprintf(te_path, PATH_MAX, "%s/%ld/times-exitcodes", 
-                     tasks_path->data, taskid);
+                    tasks_path->data, taskid);
             
             int te_fd = open(te_path, O_RDONLY);
             if (te_fd < 0) {
-                // Pas encore exécuté
                 write16(reply, ANS_OK);
                 write32(reply, (uint32_t)0);
                 break;
             }
             
-            // Compter le nombre d'exécutions
             struct stat st;
-            fstat(te_fd, &st);
+            if (fstat(te_fd, &st) < 0) {
+                close(te_fd);
+                write16(reply, ANS_ERROR);
+                write16(reply, ERR_NOT_FOUND);
+                break;
+            }
+            
             uint32_t nbruns = st.st_size / 10;
             
-            // Écrire la réponse
             write16(reply, ANS_OK);
             write32(reply, nbruns);
             
-            // Lire et envoyer chaque entrée
-            int bufsize = 1024;
-            char buf[bufsize];
-            int nb;
-            int remaining = st.st_size;
-            int min = remaining > bufsize ? bufsize : remaining;
-            while ((nb = read(te_fd, buf, min)) > 0) {
-                appendn(reply, buf, nb);
+            unsigned char buf[4096];
+            off_t remaining = st.st_size;
+            
+            while (remaining > 0) {
+                size_t to_read = remaining > (int)sizeof(buf) ? (int)sizeof(buf) : remaining;
+                ssize_t nb = read(te_fd, buf, to_read);
+                if (nb <= 0) {
+                    if (nb < 0) perror("read times-exitcodes");
+                    close(te_fd);
+                    return -1;
+                }
+                appendn(reply, (char*)buf, nb);
                 remaining -= nb;
-                min = remaining > bufsize ? bufsize : remaining;
             }
             
             close(te_fd);
@@ -436,14 +431,11 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
             
             int fd = open(path, O_RDONLY);
             if (fd < 0) {
-                // Pas encore exécuté
                 write16(reply, ANS_ERROR);
                 write16(reply, ERR_NOT_RUN);
                 break;
             }
             
-            printf("Reading\n");
-            // Lire tout le contenu
             string_t *output = new_string("");
             char buf[1025];
             int n;
@@ -453,7 +445,6 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
             }
             close(fd);
             
-            // Écrire la réponse
             write16(reply, ANS_OK);
             write32(reply, (uint32_t)output->length);
             append(reply, output->data);
@@ -599,16 +590,21 @@ int main(int argc, char *argv[]) {
             break;
         }
         if (status > 0) { // check tubes
-            printf("Checking tubes\n");
-            int handle_status = handle_request(req_fd, rep_fd, task_array, tasks_path) ;
+            int handle_status = handle_request(req_fd, rep_fd, task_array, tasks_path);
             
             if(handle_status < 0){
                 perror("handle_request failed");
                 break;
             }
-        }
-        
+
+            close(rep_fd);
+            rep_fd = open(reply_pipe, O_RDWR | O_NONBLOCK);
+            if (rep_fd < 0) {
+                perror("reopen reply pipe");
+                break;
+            }
     }
+}
    
     
     cleanup:
