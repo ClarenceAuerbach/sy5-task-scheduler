@@ -313,6 +313,7 @@ void command_to_string(command_t *cmd, string_t *result) {
 }
 
 int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_path) {
+    if (fork()) return 0;
     uint16_t opcode;
     string_t *reply = new_string("");
 
@@ -466,7 +467,7 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
     
     write_atomic_chunks(rep_fd, reply->data, reply->length);
     free_string(reply);
-    return 0;
+    exit(0);
 }
 
 /* Instantiating RUN_DIRECTORY with default directory */
@@ -492,14 +493,6 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    char request_pipe[PATH_MAX+27];
-    char reply_pipe[PATH_MAX+25];
-
-    if (create_pipes(request_pipe,reply_pipe) != 0) {
-        fprintf(stderr, "Failed to create pipes\n");
-        perror("");
-        return 1;
-    }
 
     /*Double fork() keeping the grand-child, exists in a new session id*/
 
@@ -528,8 +521,6 @@ int main(int argc, char *argv[]) {
     string_t *tasks_path = NULL;
     int ret = 0;
     int task_count = 0;
-    int req_fd = -1;
-    int rep_fd = -1;
     
     task_array = malloc(sizeof(task_array_t));
     if (!task_array) goto cleanup;
@@ -570,9 +561,16 @@ int main(int argc, char *argv[]) {
 
     /* ============================================== */
     /* Main loop: exit when a stop signal is received */
+    char req_pipe_path[PATH_MAX+27];
+    char rep_pipe_path[PATH_MAX+25];
+
+    if (create_pipes(req_pipe_path,rep_pipe_path) != 0) {
+        fprintf(stderr, "Failed to create pipes\n");
+        perror("");
+        return 1;
+    }
+    int req_fd = open(req_pipe_path, O_RDWR | O_NONBLOCK);
     
-    req_fd = open(request_pipe, O_RDWR | O_NONBLOCK);
-    rep_fd = open(reply_pipe, O_RDWR | O_NONBLOCK);
     int status;
     
     while(!stop_requested) {
@@ -590,28 +588,17 @@ int main(int argc, char *argv[]) {
             break;
         }
         if (status > 0) { // check tubes
+            int rep_fd = open(rep_pipe_path, O_WRONLY);
             int handle_status = handle_request(req_fd, rep_fd, task_array, tasks_path);
+            close(rep_fd);
             
             if(handle_status < 0){
                 perror("handle_request failed");
                 break;
             }
-
-            close(rep_fd);
-            rep_fd = open(reply_pipe, O_RDWR | O_NONBLOCK);
-            if (rep_fd < 0) {
-                perror("reopen reply pipe");
-                break;
-            }
     }
 }
-   
-    
     cleanup:
-        if (req_fd >= 0) close(req_fd);
-        if (rep_fd >= 0) close(rep_fd);
-        /* Perform full cleanup of task s    printf("%04x\n", anstype);
-    printf("yooo1\n");tructures */
         if (task_array) {
             free_task_arr(task_array);
             free(task_array);
