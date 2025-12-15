@@ -22,35 +22,23 @@ int write_atomic_chunks(int fd, char *s, size_t len) {
 }
 
 int write_uint16(string_t *msg, uint16_t val) {
-    uint16_t be_val = htobe16(val);
-    unsigned char *bytes = (unsigned char *)&be_val;
-    
-    for (int i = 0; i < 2; i++) {
-        char c = bytes[i];
-        if (append(msg, &c) != 0) return -1;
-    }
+    char tmp[2];
+    if(memcpy(tmp, &val, 2)) return -1;
+    append(msg, tmp);
     return 0;
 }
 
 int write_uint32(string_t *msg, uint32_t val) {
-    uint32_t be_val = htobe32(val);
-    unsigned char *bytes = (unsigned char *)&be_val;
-    
-    for (int i = 0; i < 4; i++) {
-        char c = bytes[i];
-        if (append(msg, &c) != 0) return -1;
-    }
+    char tmp[4];
+    if(memcpy(tmp, &val, 4)) return -1;
+    append(msg, tmp);
     return 0;
 }
 
 int write_uint64(string_t *msg, uint64_t val) {
-    uint64_t be_val = htobe64(val);
-    unsigned char *bytes = (unsigned char *)&be_val;
-    
-    for (int i = 0; i < 8; i++) {
-        char c = bytes[i];
-        if (append(msg, &c) != 0) return -1;
-    }
+    char tmp[8];
+    if(memcpy(tmp, &val, 8)) return -1;
+    append(msg, tmp);
     return 0;
 }
 
@@ -175,7 +163,7 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
     
     // Ouvrir le pipe de requête
     append(path, "/erraid-request-pipe");
-    *req_fd = open(path->data, O_WRONLY);
+    *req_fd = open(path->data, O_WRONLY | O_NONBLOCK);
     if (*req_fd < 0) {
         perror("open request pipe");
         free_string(path);
@@ -185,7 +173,8 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
     // Ouvrir le pipe de réponse
     truncate_to(path, base_len);
     append(path, "/erraid-reply-pipe");
-    *rep_fd = open(path->data, O_RDONLY);
+
+    *rep_fd = open(path->data, O_RDONLY | O_NONBLOCK);
     if (*rep_fd < 0) {
         perror("open reply pipe");
         close(*req_fd);
@@ -228,4 +217,32 @@ int read_uint64(int fd, uint64_t *val) {
     memcpy(&be_val, buf, 8);
     *val = be64toh(be_val);
     return 0;
+}
+
+// À ajouter dans tube_util.c
+void bitmap_to_string(uint64_t bitmap, int max_val, char *buf, size_t bufsize) {
+    int all_set = 1;
+    for (int i = 0; i <= max_val; i++) {
+        if (!((bitmap >> i) & 1)) {
+            all_set = 0;
+            break;
+        }
+    }
+    
+    if (all_set) {
+        snprintf(buf, bufsize, "*");
+        return;
+    }
+    
+    buf[0] = '\0';
+    int first = 1;
+    for (int i = 0; i <= max_val; i++) {
+        if ((bitmap >> i) & 1) {
+            if (!first) strncat(buf, ",", bufsize - strlen(buf) - 1);
+            char num[16];
+            snprintf(num, sizeof(num), "%d", i);
+            strncat(buf, num, bufsize - strlen(buf) - 1);
+            first = 0;
+        }
+    }
 }

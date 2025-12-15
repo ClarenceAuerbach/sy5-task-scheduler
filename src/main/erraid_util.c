@@ -65,7 +65,7 @@ void print_string( string_t string){
 
 /* Prints a task_t */
 void print_task(task_t task){
-    printf( "Task ID : %d\n", task.id );
+    printf( "Task ID : %lu\n", task.id );
     printf( "Timing : \n" );
     printBits(8, &(task.timings.minutes));
     printBits(2, &(task.timings.hours));
@@ -87,7 +87,7 @@ void print_task(task_t task){
 void print_task_ids(int argc, task_t * task[]){
     printf( "\nTask IDS : \n");
     for(int i=0 ; i < argc ; i++){
-        printf( "   %d\n", task[i]->id );
+        printf( "   %lu\n", task[i]->id );
     }
 }
 

@@ -5,15 +5,16 @@
 #include <string.h>
 #include <limits.h>
 #include <fcntl.h>
+#include <endian.h>
+#include <time.h>
 
 #include "str_util.h"
 #include "tube_util.h"
 
 /**
- * Send a LIST request
- * Returns 0 on success, -1 on error
+ * Send a LIST request and display response
  */
-int send_list_request(int req_fd) {
+int handle_list(int req_fd, int rep_fd) {
     string_t *msg = new_string("");
     if (!msg) return -1;
     
@@ -22,39 +23,84 @@ int send_list_request(int req_fd) {
         return -1;
     }
     
-    int r = write_atomic_chunks(req_fd, msg->data, msg->length);
-    free_string(msg);
-    return r;
-}
-
-/**
- * Send a REMOVE request
- * Returns 0 on success, -1 on error
- */
-int send_remove_request(int req_fd, uint64_t taskid) {
-    string_t *msg = new_string("");
-    if (!msg) return -1;
-    
-    if (write_uint16(msg, OP_REMOVE) != 0) {
+    if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
         free_string(msg);
         return -1;
     }
+    free_string(msg);
     
-    if (write_uint64(msg, taskid) != 0) {
-        free_string(msg);
+    // Read response
+    uint16_t anstype;
+    if (read_uint16(rep_fd, &anstype) != 0) {
+        fprintf(stderr, "Failed to read answer type\n");
         return -1;
     }
     
-    int r = write_atomic_chunks(req_fd, msg->data, msg->length);
-    free_string(msg);
-    return r;
+    if (anstype != ANS_OK) {
+        fprintf(stderr, "Error response from daemon\n");
+        return -1;
+    }
+    
+    // Read NBTASKS
+    uint32_t nbtasks;
+    if (read_uint32(rep_fd, &nbtasks) != 0) {
+        fprintf(stderr, "Failed to read nbtasks\n");
+        return -1;
+    }
+    
+    // Read and display each task
+    for (uint32_t i = 0; i < nbtasks; i++) {
+        // Read TASKID
+        uint64_t taskid;
+        if (read_uint64(rep_fd, &taskid) != 0) return -1;
+        
+        // Read TIMING
+        uint64_t minutes;
+        uint32_t hours;
+        uint8_t days;
+        if (read_uint64(rep_fd, &minutes) != 0) return -1;
+        if (read_uint32(rep_fd, &hours) != 0) return -1;
+        unsigned char dbuf[1];
+        if (read(rep_fd, dbuf, 1) != 1) return -1;
+        days = dbuf[0];
+        
+        // Read COMMANDLINE
+        uint32_t cmdlen;
+        if (read_uint32(rep_fd, &cmdlen) != 0) return -1;
+        char *cmdline = malloc(cmdlen + 1);
+        if (!cmdline) return -1;
+        if (read(rep_fd, cmdline, cmdlen) != (ssize_t)cmdlen) {
+            free(cmdline);
+            return -1;
+        }
+        cmdline[cmdlen] = '\0';
+        
+        // Format and display
+        char min_str[256], hrs_str[128], day_str[32];
+        
+        // Check if timing is null (no execution)
+        if (minutes == 0 && hours == 0 && days == 0) {
+            snprintf(min_str, sizeof(min_str), "-");
+            snprintf(hrs_str, sizeof(hrs_str), "-");
+            snprintf(day_str, sizeof(day_str), "-");
+        } else {
+            // Convert bitmaps to strings
+            bitmap_to_string(minutes, 59, min_str, sizeof(min_str));
+            bitmap_to_string(hours, 23, hrs_str, sizeof(hrs_str));
+            bitmap_to_string(days, 6, day_str, sizeof(day_str));
+        }
+        
+        printf("%lu: %s %s %s %s\n", taskid, min_str, hrs_str, day_str, cmdline);
+        free(cmdline);
+    }
+    
+    return 0;
 }
 
 /**
- * Send a TIMES_EXITCODES request
- * Returns 0 on success, -1 on error
+ * Send TIMES_EXITCODES request and display response
  */
-int send_times_exitcodes_request(int req_fd, uint64_t taskid) {
+int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
     string_t *msg = new_string("");
     if (!msg) return -1;
     
@@ -68,20 +114,58 @@ int send_times_exitcodes_request(int req_fd, uint64_t taskid) {
         return -1;
     }
     
-    int r = write_atomic_chunks(req_fd, msg->data, msg->length);
+    if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
+        free_string(msg);
+        return -1;
+    }
     free_string(msg);
-    return r;
+    
+    // Read response
+    uint16_t anstype;
+    if (read_uint16(rep_fd, &anstype) != 0) return -1;
+    
+    if (anstype == ANS_ERROR) {
+        uint16_t errcode;
+        if (read_uint16(rep_fd, &errcode) != 0) return -1;
+        if (errcode == ERR_NOT_FOUND) {
+            fprintf(stderr, "Task not found\n");
+        }
+        return -1;
+    }
+    
+    // Read NBRUNS
+    uint32_t nbruns;
+    if (read_uint32(rep_fd, &nbruns) != 0) return -1;
+    
+    // Read and display each run
+    for (uint32_t i = 0; i < nbruns; i++) {
+        uint64_t timestamp;
+        uint16_t exitcode;
+        
+        if (read_uint64(rep_fd, &timestamp) != 0) return -1;
+        if (read_uint16(rep_fd, &exitcode) != 0) return -1;
+        
+        time_t t = (time_t)timestamp;
+        struct tm *tm = localtime(&t);
+        if (!tm) continue;
+        
+        printf("%04d-%02d-%02d %02d:%02d:%02d %u\n",
+               tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday,
+               tm->tm_hour, tm->tm_min, tm->tm_sec,
+               exitcode);
+    }
+    
+    return 0;
 }
 
 /**
- * Send a STDOUT request
- * Returns 0 on success, -1 on error
+ * Send STDOUT or STDERR request and display response
  */
-int send_stdout_request(int req_fd, uint64_t taskid) {
+int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
     string_t *msg = new_string("");
     if (!msg) return -1;
     
-    if (write_uint16(msg, OP_STDOUT) != 0) {
+    if (write_uint16(msg, is_stdout ? OP_STDOUT : OP_STDERR) != 0) {
         free_string(msg);
         return -1;
     }
@@ -91,20 +175,54 @@ int send_stdout_request(int req_fd, uint64_t taskid) {
         return -1;
     }
     
-    int r = write_atomic_chunks(req_fd, msg->data, msg->length);
+    if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
+        free_string(msg);
+        return -1;
+    }
     free_string(msg);
-    return r;
+    
+    // Read response
+    uint16_t anstype;
+    if (read_uint16(rep_fd, &anstype) != 0) return -1;
+    
+    if (anstype == ANS_ERROR) {
+        uint16_t errcode;
+        if (read_uint16(rep_fd, &errcode) != 0) return -1;
+        if (errcode == ERR_NOT_FOUND) {
+            fprintf(stderr, "Task not found\n");
+        } else if (errcode == ERR_NOT_RUN) {
+            fprintf(stderr, "Task has not been executed yet\n");
+        }
+        return -1;
+    }
+    
+    // Read OUTPUT
+    uint32_t len;
+    if (read_uint32(rep_fd, &len) != 0) return -1;
+    
+    char *output = malloc(len + 1);
+    if (!output) return -1;
+    
+    if (len > 0 && read(rep_fd, output, len) != (ssize_t)len) {
+        free(output);
+        return -1;
+    }
+    output[len] = '\0';
+    
+    printf("%s", output);
+    free(output);
+    
+    return 0;
 }
 
 /**
- * Send a STDERR request
- * Returns 0 on success, -1 on error
+ * Send REMOVE request
  */
-int send_stderr_request(int req_fd, uint64_t taskid) {
+int handle_remove(int req_fd, int rep_fd, uint64_t taskid) {
     string_t *msg = new_string("");
     if (!msg) return -1;
     
-    if (write_uint16(msg, OP_STDERR) != 0) {
+    if (write_uint16(msg, OP_REMOVE) != 0) {
         free_string(msg);
         return -1;
     }
@@ -114,16 +232,32 @@ int send_stderr_request(int req_fd, uint64_t taskid) {
         return -1;
     }
     
-    int r = write_atomic_chunks(req_fd, msg->data, msg->length);
+    if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
+        free_string(msg);
+        return -1;
+    }
     free_string(msg);
-    return r;
+    
+    // Read response
+    uint16_t anstype;
+    if (read_uint16(rep_fd, &anstype) != 0) return -1;
+    
+    if (anstype == ANS_ERROR) {
+        uint16_t errcode;
+        if (read_uint16(rep_fd, &errcode) != 0) return -1;
+        if (errcode == ERR_NOT_FOUND) {
+            fprintf(stderr, "Task not found\n");
+        }
+        return -1;
+    }
+    
+    return 0;
 }
 
 /**
- * Send a TERMINATE request
- * Returns 0 on success, -1 on error
+ * Send TERMINATE request
  */
-int send_terminate_request(int req_fd) {
+int handle_terminate(int req_fd, int rep_fd) {
     string_t *msg = new_string("");
     if (!msg) return -1;
     
@@ -132,9 +266,20 @@ int send_terminate_request(int req_fd) {
         return -1;
     }
     
-    int r = write_atomic_chunks(req_fd, msg->data, msg->length);
+    if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
+        free_string(msg);
+        return -1;
+    }
     free_string(msg);
-    return r;
+
+    
+    fcntl(req_fd, F_SETFL, 0);
+    fcntl(rep_fd, F_SETFL, 0);
+    // Read response
+    uint16_t anstype;
+    if (read_uint16(rep_fd, &anstype) != 0) return -1;
+    
+    return 0;
 }
 
 int main(int argc, char **argv) {
@@ -144,64 +289,52 @@ int main(int argc, char **argv) {
     }
     
     int req_fd, rep_fd;
-    
     if (open_pipes(NULL, &req_fd, &rep_fd) != 0) {
         return 1;
     }
 
+    int ret = 0;
+    
     // Handle -l (LIST)
     if (strcmp(argv[1], "-l") == 0) {
-        int r = send_list_request(req_fd);
-        close(req_fd);
-        close(rep_fd);
-        return r;
+        ret = handle_list(req_fd, rep_fd);
     }
-
     // Handle -q (TERMINATE)
-    if (strcmp(argv[1], "-q") == 0) {
-        int r = send_terminate_request(req_fd);
-        close(req_fd);
-        close(rep_fd);
-        return r;
+    else if (strcmp(argv[1], "-q") == 0) {
+        ret = handle_terminate(req_fd, rep_fd);
     }
-
     // All other options require a TASKID
-    if (argc < 3) {
+    else if (argc < 3) {
         fprintf(stderr, "%s requires TASKID\n", argv[1]);
-        close(req_fd);
-        close(rep_fd);
-        return 1;
+        ret = 1;
     }
-
-    // Convert TASKID from string to uint64
-    uint64_t taskid = strtoull(argv[2], NULL, 10);
-    int r = -1;
-
     // Handle -r (REMOVE)
-    if (strcmp(argv[1], "-r") == 0) {
-        r = send_remove_request(req_fd, taskid);
+    else if (strcmp(argv[1], "-r") == 0) {
+        uint64_t taskid = strtoull(argv[2], NULL, 10);
+        ret = handle_remove(req_fd, rep_fd, taskid);
     }
     // Handle -x (TIMES_EXITCODES)
     else if (strcmp(argv[1], "-x") == 0) {
-        r = send_times_exitcodes_request(req_fd, taskid);
+        uint64_t taskid = strtoull(argv[2], NULL, 10);
+        ret = handle_times_exitcodes(req_fd, rep_fd, taskid);
     }
     // Handle -o (STDOUT)
     else if (strcmp(argv[1], "-o") == 0) {
-        r = send_stdout_request(req_fd, taskid);
+        uint64_t taskid = strtoull(argv[2], NULL, 10);
+        ret = handle_output(req_fd, rep_fd, taskid, 1);
     }
     // Handle -e (STDERR)
     else if (strcmp(argv[1], "-e") == 0) {
-        r = send_stderr_request(req_fd, taskid);
+        uint64_t taskid = strtoull(argv[2], NULL, 10);
+        ret = handle_output(req_fd, rep_fd, taskid, 0);
     }
     // Invalid option
     else {
         fprintf(stderr, "Invalid option: %s\n", argv[1]);
-        close(req_fd);
-        close(rep_fd);
-        return 1;
+        ret = 1;
     }
 
     close(req_fd);
     close(rep_fd);
-    return r;
+    return ret;
 }

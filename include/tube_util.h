@@ -126,4 +126,12 @@ int read_uint32(int fd, uint32_t *val);
  */
 int read_uint64(int fd, uint64_t *val);
 
+/**
+ * Converts timing or bitmap to a readable string
+ * @param bitmap th ebitmap in uint64_t
+ * @param buf destination buffer for the string
+ * @return 0 on success
+ */
+void bitmap_to_string(uint64_t bitmap, int max_val, char *buf, size_t bufsize);
+
 #endif

@@ -153,11 +153,17 @@ int tube_timeout(int tube_fd, int timeout) {
 
     struct pollfd p = {
         .fd = tube_fd,
-        .events = POLL_IN
+        .events = POLLIN
     };
-
-    int ret = poll(&p, 1, timeout);
-    return ret;
+    
+    int ret;
+    /* Retry poll on EINTR (signal interruption) */
+    while (1) {
+        ret = poll(&p, 1, timeout);
+        if (ret >= 0) return ret;           /* success or timeout */
+        if (errno != EINTR) return ret;     /* real error */
+        /* EINTR: signal interrupted poll, retry */
+    }
 }
 
 /* Runs every due task and return the time until next scheduled execution
@@ -252,8 +258,7 @@ int run(char *tasks_path, task_array_t *task_array){
 
 end:
     if (!found_task) ret = 604800; // One week in seconds, somewhat arbitrary value
-    ret = min_timing-now;
-    printf("Time until next task execution: %d\n", ret);
+    else ret = min_timing-now;
 cleanup:
     if (fd_out >= 0) close(fd_out);
     if (fd_err >= 0) close(fd_err);
@@ -263,16 +268,6 @@ cleanup:
     if (times_exitc_path) free(times_exitc_path);
     reap_zombies();
     return ret;
-}
-
-/* Instantiating RUN_DIRECTORY with default directory */
-void change_rundir(int argc, char *argv[]){
-    if (argc != 3) {
-        snprintf(RUN_DIRECTORY, PATH_MAX,"/tmp/%s/erraid",  getenv("USER"));
-    } else if(!strcmp(argv[1],"-r")){
-        /* copy safely into fixed-size RUN_DIRECTORY */
-        snprintf(RUN_DIRECTORY, PATH_MAX, "%s", argv[2]);
-    } 
 }
 
 int create_pipes(char *request_pipe, char *reply_pipe) {
@@ -304,88 +299,227 @@ int create_pipes(char *request_pipe, char *reply_pipe) {
     return 0;
 }
 
-string_t *find_task_path(string_t *tasks_path, uint64_t taskid) {
-    string_t *res = copy_string(tasks_path);
-    DIR *task_dir = opendir(res->data);
-    struct dirent *entry = NULL;
-    uint64_t current_taskid = -1;
-    while ((entry = readdir(task_dir))) {
-        current_taskid = strtoull(entry->d_name, NULL, 10);
-        if (current_taskid == taskid) break;
+int find_task_index(task_array_t *tasks, uint64_t taskid) {
+    for (int i = 0; i < tasks->length; i++) {
+        if (tasks->tasks[i]->id == taskid) {
+            return i;
+        }
     }
-    if (current_taskid != taskid) return NULL;
+    return -1;
+}
 
-    append(res, "/");
-    append(res, entry->d_name);
-    append(res, "/times_exitcodes");
-    return res;
+void command_to_string(command_t *cmd, string_t *result) {
+    if (!strcmp(cmd->type, "SI")) {
+        for (uint32_t i = 0; i < cmd->args.argc; i++) {
+            if (i > 0) append(result, " ");
+            append(result, cmd->args.argv[i].data);
+        }
+    } else if (!strcmp(cmd->type, "SQ")) {
+        append(result, "(");
+        for (uint32_t i = 0; i < cmd->nbcmds; i++) {
+            if (i > 0) append(result, "; ");
+            command_to_string(&cmd->cmd[i], result);
+        }
+        append(result, ")");
+    }
 }
 
 int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_path) {
-    int ret = -1;
     uint16_t opcode;
-    string_t *reply = new_string("");
+    unsigned char buf[2];
+    
+    /* Retry read on EINTR (signal interruption) */
+    ssize_t r;
+    while (1) {
+        r = read(req_fd, buf, 2);
+        if (r >= 0) break;              /* success: 0 or some bytes read */
+        if (errno != EINTR) break;      /* real error */
+        /* EINTR: signal interrupted read, retry */
+    }
+    
+    if (r == 0) {
+        return 0; 
+    }
+    
+    if (r < 0) {
+        return 0;   /* real error on read, return gracefully */
+    }
 
-    if (read(req_fd, &opcode, 2) < 2) return -1;
-
-    switch (opcode) {
+    if (r != 2) {
+        perror("read opcode");
+        return -1;
+    }
+    
+    memcpy(&opcode, buf, 2);
+    opcode = be16toh(opcode);
+    
+    printf("Received opcode: 0x%04x\n", opcode);
+    
+    switch(opcode) {
         case OP_LIST: {
-            return 0;
+            // Écrire ANSTYPE = 'OK'
+            uint16_t anstype = htobe16(ANS_OK);
+            write(rep_fd, &anstype, 2);
+            
+            // Écrire NBTASKS
+            uint32_t nbtasks = htobe32(tasks->length);
+            write(rep_fd, &nbtasks, 4);
+            
+            // Pour chaque tâche
+            for (int i = 0; i < tasks->length; i++) {
+                // TASKID
+                uint64_t taskid = htobe64(tasks->tasks[i]->id);
+                write(rep_fd, &taskid, 8);
+                
+                // TIMING
+                timing_t *t = &tasks->tasks[i]->timings;
+                uint64_t min_be = htobe64(t->minutes);
+                uint32_t hrs_be = htobe32(t->hours);
+                uint8_t days_be = t->daysofweek;
+                write(rep_fd, &min_be, 8);
+                write(rep_fd, &hrs_be, 4);
+                write(rep_fd, &days_be, 1);
+
+                string_t *cmdline = new_string("");
+                command_to_string(tasks->tasks[i]->command, cmdline);
+                uint32_t len = htobe32(cmdline->length);
+                write(rep_fd, &len, 4);
+                write(rep_fd, cmdline->data, cmdline->length);
+                free_string(cmdline);
+            }
+            break;
         }
 
         case OP_TIMES_EXITCODES: {
-            // TODO: how to deal with fatal errors? write or no write into the tube?
-            // TODO: format final string response
             uint64_t taskid;
-            int ret = read_uint64(req_fd, &taskid);
-            if (ret < 0) return -1;
-
-            string_t *times_exitcodes_path = find_task_path(tasks_path, taskid);
-            append(times_exitcodes_path, "/times_exitcodes");
-            int te_fd = open(times_exitcodes_path->data, O_RDONLY);
+            if (read_uint64(req_fd, &taskid) < 0) {
+                return -1;
+            }
+            
+            int idx = find_task_index(tasks, taskid);
+            if (idx < 0) {
+                // Task not found
+                uint16_t anstype = htobe16(ANS_ERROR);
+                write(rep_fd, &anstype, 2);
+                uint16_t errcode = htobe16(ERR_NOT_FOUND);
+                write(rep_fd, &errcode, 2);
+                break;
+            }
+            
+            // Construire le chemin du fichier times-exitcodes
+            char te_path[PATH_MAX];
+            snprintf(te_path, PATH_MAX, "%s/%ld/times-exitcodes", 
+                     tasks_path->data, taskid);
+            
+            int te_fd = open(te_path, O_RDONLY);
             if (te_fd < 0) {
-                perror("Opening times_exitcodes in request handler");
-                free_string(times_exitcodes_path);
-                goto cleanup;
+                // Pas encore exécuté
+                uint16_t anstype = htobe16(ANS_OK);
+                write(rep_fd, &anstype, 2);
+                uint32_t nbruns = 0;
+                write(rep_fd, &nbruns, 4);
+                break;
             }
-
-            char buf[1001] = {0};
-            int nb;
-            while ((nb = read(te_fd, buf, 1000)) > 0) {
-                buf[nb] = '\0';
-                append(reply, buf);
+            
+            // Compter le nombre d'exécutions
+            struct stat st;
+            fstat(te_fd, &st);
+            uint32_t nbruns = st.st_size / 10;
+            
+            // Écrire la réponse
+            uint16_t anstype = htobe16(ANS_OK);
+            write(rep_fd, &anstype, 2);
+            uint32_t nbruns_be = htobe32(nbruns);
+            write(rep_fd, &nbruns_be, 4);
+            
+            // Lire et envoyer chaque entrée
+            unsigned char entry[10];
+            while (read(te_fd, entry, 10) == 10) {
+                write(rep_fd, entry, 10);
             }
-            if (reply->length % 10 != 0) {
-                free_string(times_exitcodes_path);
-                goto cleanup;
-            }
+            
+            close(te_fd);
             break;
         }
 
-        case OP_STDOUT: {
-            ret = 0;
-            break;
-        }
-
+        case OP_STDOUT:
         case OP_STDERR: {
-            ret = 0;
-            break;
-        }
-
-        case OP_REMOVE: {
-            ret = 0;
+            uint64_t taskid;
+            if (read_uint64(req_fd, &taskid) < 0) {
+                return -1;
+            }
+            
+            int idx = find_task_index(tasks, taskid);
+            if (idx < 0) {
+                uint16_t anstype = htobe16(ANS_ERROR);
+                write(rep_fd, &anstype, 2);
+                uint16_t errcode = htobe16(ERR_NOT_FOUND);
+                write(rep_fd, &errcode, 2);
+                break;
+            }
+            
+            char path[PATH_MAX];
+            snprintf(path, PATH_MAX, "%s/%ld/%s", 
+                     tasks_path->data, taskid, 
+                     opcode == OP_STDOUT ? "stdout" : "stderr");
+            
+            int fd = open(path, O_RDONLY);
+            if (fd < 0) {
+                // Pas encore exécuté
+                uint16_t anstype = htobe16(ANS_ERROR);
+                write(rep_fd, &anstype, 2);
+                uint16_t errcode = htobe16(ERR_NOT_RUN);
+                write(rep_fd, &errcode, 2);
+                break;
+            }
+            
+            // Lire tout le contenu
+            string_t *output = new_string("");
+            char buf[1024];
+            ssize_t n;
+            while ((n = read(fd, buf, sizeof(buf))) > 0) {
+                for (ssize_t i = 0; i < n; i++) {
+                    append(output, &buf[i]);
+                }
+            }
+            close(fd);
+            
+            // Écrire la réponse
+            uint16_t anstype = htobe16(ANS_OK);
+            write(rep_fd, &anstype, 2);
+            uint32_t len = htobe32(output->length);
+            write(rep_fd, &len, 4);
+            write(rep_fd, output->data, output->length);
+            
+            free_string(output);
             break;
         }
 
         case OP_TERMINATE: {
+            uint16_t anstype = htobe16(ANS_OK);
+            write(rep_fd, &anstype, 2);
+
+            printf("answer : %d \n", anstype);
             stop_requested = 1;
-            break;
+            return 1;
         }
+
+        default:
+            fprintf(stderr, "Unknown opcode: 0x%04x\n", opcode);
+            return -1;
     }
-    ret = 0;
-cleanup:
-    free_string(reply);
-    return ret;
+    
+    return 0;
+}
+
+/* Instantiating RUN_DIRECTORY with default directory */
+void change_rundir(int argc, char *argv[]){
+    if(argc == 3 && !strcmp(argv[1],"-r")){
+        /* copy safely into fixed-size RUN_DIRECTORY */
+        snprintf(RUN_DIRECTORY, PATH_MAX, "%s", argv[2]);
+    }else {
+        snprintf(RUN_DIRECTORY, PATH_MAX,"/tmp/%s/erraid",  getenv("USER"));
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -433,9 +567,11 @@ int main(int argc, char *argv[]) {
     /* ~~~~~~~~ DO NOT CHANGE THE ABOVE ~~~~~~~~ */
 
     task_array_t *task_array = NULL;
-    string_t *tasks_path;
+    string_t *tasks_path = NULL;
     int ret = 0;
     int task_count = 0;
+    int req_fd = -1;
+    int rep_fd = -1;
     
     task_array = malloc(sizeof(task_array_t));
     if (!task_array) goto cleanup;
@@ -443,49 +579,80 @@ int main(int argc, char *argv[]) {
     tasks_path = new_string(RUN_DIRECTORY);
     append(tasks_path, "/tasks");
 
-    task_count = count_dir_size(tasks_path->data, 1);
-    task_array->length = task_count;
-
-    task_array->tasks = malloc(task_count * sizeof(task_t *));
-    if (!task_array->tasks) goto cleanup;
-
-    if (extract_all(task_array, tasks_path->data)){
-        perror("Extract_all failed");
+    /* creates tasks directory if non existent*/
+    if (mkdir(tasks_path->data, 0700) != 0 && errno != EEXIST) {
+        perror("mkdir tasks");
         goto cleanup;
     }
 
-    task_array->next_times = malloc(task_count * sizeof(time_t));
-    if (!task_array->next_times) goto cleanup;
+    task_count = count_dir_size(tasks_path->data, 1);
+    task_array->length = task_count;
+    
+    /* If there are no tasks we skip extraction */
+    if (task_count > 0) {
+        task_array->tasks = malloc(task_count * sizeof(task_t *));
+        if (!task_array->tasks) goto cleanup;
 
-    time_t now = time(NULL);
-    for(int i = 0; i < task_count; i++) {
-        task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
+        if (extract_all(task_array, tasks_path->data)) {
+            perror("Extract_all failed");
+            goto cleanup;
+        }
+
+        task_array->next_times = malloc(task_count * sizeof(time_t));
+        if (!task_array->next_times) goto cleanup;
+
+        time_t now = time(NULL);
+        for(int i = 0; i < task_count; i++) {
+            task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
+        }
+    } else {
+        task_array->tasks = NULL;
+        task_array->next_times = NULL;
     }
 
     /* ============================================== */
     /* Main loop: exit when a stop signal is received */
-    int req_fd = open(request_pipe, O_WRONLY | O_NONBLOCK);
-    int rep_fd = open(reply_pipe, O_WRONLY | O_NONBLOCK);
+    
+    req_fd = open(request_pipe, O_RDONLY | O_NONBLOCK);
+    rep_fd = open(reply_pipe, O_WRONLY | O_NONBLOCK);
+
+    /* Resets flags on fd to restore blocking*/
+    fcntl(req_fd, F_SETFL, 0);
+    fcntl(rep_fd, F_SETFL, 0);
+    
     int status;
+    
     while(!stop_requested) {
         ret = run(tasks_path->data, task_array);
         if(ret < 0){
             perror("An Error occured during run()");
+            continue;
         }
-        else {
-            status = tube_timeout(req_fd, ret);
-            if (status < 0) perror("Error with poll");
-            if (status == 0) { // timeout
-                continue;
-            }
-            if (status > 0) { // check tubes
-                handle_request(req_fd, rep_fd, task_array, tasks_path);
+        
+        printf("Time until next task execution: %ds\n", ret);
+
+        status = tube_timeout(req_fd, ret * 1000); // tube_timeout takes milliseconds
+        if (status < 0) {
+            perror("Error with poll");
+            break;
+        }
+        if (status > 0) { // check tubes
+            int handle_status = handle_request(req_fd, rep_fd, task_array, tasks_path) ;
+            
+            if(handle_status < 0){
+                perror("handle_request failed");
+                break;
+            } else if (handle_status == 1) { // if terminate
+                break;
             }
         }
+        
     }
    
-    // Should only exit on error
+    
     cleanup:
+        if (req_fd >= 0) close(req_fd);
+        if (rep_fd >= 0) close(rep_fd);
         /* Perform full cleanup of task structures */
         if (task_array) {
             free_task_arr(task_array);
