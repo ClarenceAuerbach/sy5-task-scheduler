@@ -496,10 +496,10 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
         }
 
         case OP_TERMINATE: {
-            uint16_t anstype = htobe16(ANS_OK);
-            write(rep_fd, &anstype, 2);
+            uint16_t ans_type = ANS_OK;
+            write(rep_fd, &ans_type, 2);
 
-            printf("answer : %d \n", anstype);
+            printf("answer : %d \n", ans_type);
             stop_requested = 1;
             return 1;
         }
@@ -616,10 +616,6 @@ int main(int argc, char *argv[]) {
     req_fd = open(request_pipe, O_RDONLY | O_NONBLOCK);
     rep_fd = open(reply_pipe, O_WRONLY | O_NONBLOCK);
 
-    /* Resets flags on fd to restore blocking*/
-    fcntl(req_fd, F_SETFL, 0);
-    fcntl(rep_fd, F_SETFL, 0);
-    
     int status;
     
     while(!stop_requested) {
@@ -630,13 +626,15 @@ int main(int argc, char *argv[]) {
         }
         
         printf("Time until next task execution: %ds\n", ret);
+        sleep(1);
 
-        status = tube_timeout(req_fd, ret * 1000); // tube_timeout takes milliseconds
+        status = tube_timeout(req_fd, ret * 1000);
         if (status < 0) {
             perror("Error with poll");
             break;
         }
         if (status > 0) { // check tubes
+            printf("Checking tubes");
             int handle_status = handle_request(req_fd, rep_fd, task_array, tasks_path) ;
             
             if(handle_status < 0){

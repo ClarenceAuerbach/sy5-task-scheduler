@@ -61,8 +61,5 @@ distclean:
 	rm -f erraid
 	rm -f tadmor
 
-kill : 
-	@PID=$$(ps aux | grep './erraid' | awk '{print $$2}'); \
-	if [ -n "$$PID" ]; then \
-		kill $$PID ; \
-	fi
+kill:
+	@pkill -x erraid || true
