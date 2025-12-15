@@ -21,37 +21,33 @@ int write_atomic_chunks(int fd, char *s, size_t len) {
     return 0;
 }
 
-int write_uint16(string_t *msg, uint16_t val) {
+int write16(string_t *msg, uint16_t val) {
     uint16_t be_val = htobe16(val);
-    char tmp[3];
-    memcpy(tmp, &be_val, 2);
-    tmp[2] = '\0';
-    append(msg, tmp);
+    append16(msg, be_val);
     return 0;
 }
 
-int write_uint32(string_t *msg, uint32_t val) {
+int write32(string_t *msg, uint32_t val) {
     uint32_t be_val = htobe32(val);
-    char tmp[5];
-    memcpy(tmp, &be_val, 4);
-    tmp[4] = '\0';
-    append(msg, tmp);
+    append32(msg, be_val);
     return 0;
 }
 
-int write_uint64(string_t *msg, uint64_t val) {
+int write64(string_t *msg, uint64_t val) {
     uint64_t be_val = htobe64(val);
-    char tmp[9];
-    memcpy(tmp, &be_val, 8);
-    tmp[8] = '\0';
-    append(msg, tmp);
+    append64(msg, be_val);
     return 0;
 }
 
-int read_uint16(int fd, uint16_t *val) {
-    unsigned char buf[2];
+int read16(int fd, uint16_t *val) {
+    char buf[2];
     ssize_t r = read(fd, buf, 2);
-    if (r != 2) return -1;
+    
+    if (r != 2) {
+        printf("%zd\n", r);
+        perror("read ok");
+        return -1;
+    }
     
     uint16_t be_val;
     memcpy(&be_val, buf, 2);
@@ -59,7 +55,7 @@ int read_uint16(int fd, uint16_t *val) {
     return 0;
 }
 
-int read_uint32(int fd, uint32_t *val) {
+int read32(int fd, uint32_t *val) {
     unsigned char buf[4];
     ssize_t r = read(fd, buf, 4);
     if (r != 4) return -1;
@@ -70,7 +66,7 @@ int read_uint32(int fd, uint32_t *val) {
     return 0;
 }
 
-int read_uint64(int fd, uint64_t *val) {
+int read64(int fd, uint64_t *val) {
     unsigned char buf[8];
     ssize_t r = read(fd, buf, 8);
     if (r != 8) return -1;
@@ -115,8 +111,8 @@ uint64_t parse_timing_field(const char *str, int max_value) {
 int write_timing(string_t *msg, const char *minutes, const char *hours, 
                  const char *days, int no_timing) {
     if (no_timing) {
-        if (write_uint64(msg, 0) != 0) return -1;
-        if (write_uint32(msg, 0) != 0) return -1;
+        if (write64(msg, 0) != 0) return -1;
+        if (write32(msg, 0) != 0) return -1;
         char zero = 0;
         if (append(msg, &zero) != 0) return -1;
         return 0;
@@ -133,7 +129,7 @@ int write_timing(string_t *msg, const char *minutes, const char *hours,
     } else {
         minutes_bitmap = parse_timing_field(minutes, 59);
     }
-    if (write_uint64(msg, minutes_bitmap) != 0) return -1;
+    if (write64(msg, minutes_bitmap) != 0) return -1;
     
     // Parser et encoder les heures (0-23)
     uint32_t hours_bitmap;
@@ -146,7 +142,7 @@ int write_timing(string_t *msg, const char *minutes, const char *hours,
     } else {
         hours_bitmap = (uint32_t)parse_timing_field(hours, 23);
     }
-    if (write_uint32(msg, hours_bitmap) != 0) return -1;
+    if (write32(msg, hours_bitmap) != 0) return -1;
     
     // Parser et encoder les jours (0-6: dimanche-samedi)
     uint8_t days_bitmap;
@@ -164,13 +160,13 @@ int write_timing(string_t *msg, const char *minutes, const char *hours,
 
 int write_arguments(string_t *msg, int argc, char **argv) {
      
-    if (write_uint32(msg, argc) != 0) return -1;
+    if (write32(msg, argc) != 0) return -1;
     
      
     for (int i = 0; i < argc; i++) {
         uint32_t len = strlen(argv[i]);
          
-        if (write_uint32(msg, len) != 0) return -1;
+        if (write32(msg, len) != 0) return -1;
         
         for (size_t j = 0; j < len; j++) {
             if (append(msg, &argv[i][j]) != 0) return -1;

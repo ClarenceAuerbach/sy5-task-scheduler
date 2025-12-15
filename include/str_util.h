@@ -2,6 +2,7 @@
 #define STR_UTIL_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 // Data: heap allocated data
 // Length: number of (non null) characters
@@ -23,6 +24,11 @@ string_t *copy_string(string_t *string);
 // Appends a char* to a string
 // Returns NULL on error
 int append(string_t *dest, const char *s);
+
+int appendn(string_t *dest, const char *s, int n);
+int append16(string_t *dest, uint16_t s) ;
+int append32(string_t *dest, uint32_t s) ;
+int append64(string_t *dest, uint64_t s) ;
 
 // Removes n characters from the string
 void truncate_by(string_t *str, int n);

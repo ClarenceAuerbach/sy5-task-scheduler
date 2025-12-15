@@ -318,13 +318,13 @@ void command_to_string(command_t *cmd, string_t *result) {
 
 int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_path) {
     uint16_t opcode;
-    
-    printf("In handle_request\n");
+    string_t *reply = new_string("");
 
-    int r = read_uint16(req_fd, &opcode);
-    if (r == -1) perror("Reading opcode");
-    
-    printf("Finished reading opcode\n");
+    int r = read16(req_fd, &opcode);
+    if (r == -1) {
+        perror("Reading opcode");
+        return -1;
+    }
     
     printf("Received opcode: 0x%04x\n", opcode);
     
@@ -365,17 +365,15 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
 
         case OP_TIMES_EXITCODES: {
             uint64_t taskid;
-            if (read_uint64(req_fd, &taskid) < 0) {
+            if (read64(req_fd, &taskid) < 0) {
                 return -1;
             }
             
             int idx = find_task_index(tasks, taskid);
             if (idx < 0) {
                 // Task not found
-                uint16_t anstype = htobe16(ANS_ERROR);
-                write(rep_fd, &anstype, 2);
-                uint16_t errcode = htobe16(ERR_NOT_FOUND);
-                write(rep_fd, &errcode, 2);
+                write16(reply, ANS_ERROR);
+                write16(reply, ERR_NOT_FOUND);
                 break;
             }
             
@@ -387,10 +385,8 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
             int te_fd = open(te_path, O_RDONLY);
             if (te_fd < 0) {
                 // Pas encore exécuté
-                uint16_t anstype = htobe16(ANS_OK);
-                write(rep_fd, &anstype, 2);
-                uint32_t nbruns = 0;
-                write(rep_fd, &nbruns, 4);
+                write16(reply, ANS_OK);
+                write32(reply, (uint32_t)0);
                 break;
             }
             
@@ -400,15 +396,22 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
             uint32_t nbruns = st.st_size / 10;
             
             // Écrire la réponse
-            uint16_t anstype = htobe16(ANS_OK);
-            write(rep_fd, &anstype, 2);
-            uint32_t nbruns_be = htobe32(nbruns);
-            write(rep_fd, &nbruns_be, 4);
+            write16(reply, ANS_OK);
+            write32(reply, nbruns);
             
             // Lire et envoyer chaque entrée
-            unsigned char entry[10];
-            while (read(te_fd, entry, 10) == 10) {
-                write(rep_fd, entry, 10);
+            char buf[1000];
+            int nb;
+            int remaining = st.st_size;
+            while ((nb = read(te_fd, buf, remaining)) > 0) {
+                for (int i = 0; i < nb / 10; i++) {
+                    time_t *exec_time = (time_t*)(buf+10*i);
+                    *exec_time = htobe64(*exec_time);
+                    uint16_t *ret = (uint16_t*)(buf+10*i+8);
+                    *ret = htobe16(*ret);
+                    appendn(reply, buf, nb);
+                }
+                remaining -= nb;
             }
             
             close(te_fd);
@@ -418,16 +421,14 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
         case OP_STDOUT:
         case OP_STDERR: {
             uint64_t taskid;
-            if (read_uint64(req_fd, &taskid) < 0) {
+            if (read64(req_fd, &taskid) < 0) {
+                free_string(reply);
                 return -1;
             }
-            
             int idx = find_task_index(tasks, taskid);
             if (idx < 0) {
-                uint16_t anstype = htobe16(ANS_ERROR);
-                write(rep_fd, &anstype, 2);
-                uint16_t errcode = htobe16(ERR_NOT_FOUND);
-                write(rep_fd, &errcode, 2);
+                write16(reply, ANS_ERROR);
+                write16(reply, ERR_NOT_FOUND);
                 break;
             }
             
@@ -439,40 +440,35 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
             int fd = open(path, O_RDONLY);
             if (fd < 0) {
                 // Pas encore exécuté
-                uint16_t anstype = htobe16(ANS_ERROR);
-                write(rep_fd, &anstype, 2);
-                uint16_t errcode = htobe16(ERR_NOT_RUN);
-                write(rep_fd, &errcode, 2);
+                write16(reply, ANS_ERROR);
+                write16(reply, ERR_NOT_RUN);
                 break;
             }
             
+            printf("Reading\n");
             // Lire tout le contenu
             string_t *output = new_string("");
-            char buf[1024];
-            ssize_t n;
+            char buf[1025];
+            int n;
             while ((n = read(fd, buf, sizeof(buf))) > 0) {
-                for (ssize_t i = 0; i < n; i++) {
-                    append(output, &buf[i]);
-                }
+                buf[n] = '\0';
+                append(output, buf);
             }
             close(fd);
             
             // Écrire la réponse
-            uint16_t anstype = htobe16(ANS_OK);
-            write(rep_fd, &anstype, 2);
-            uint32_t len = htobe32(output->length);
-            write(rep_fd, &len, 4);
-            write(rep_fd, output->data, output->length);
+            write16(reply, ANS_OK);
+            write32(reply, (uint32_t)output->length);
+            append(reply, output->data);
             
             free_string(output);
             break;
         }
 
         case OP_TERMINATE: {
-            uint16_t ans_type = ANS_OK;
-            write(rep_fd, &ans_type, 2);
+            write16(reply, ANS_OK);
             stop_requested = 1;
-            return 1;
+            break;
         }
 
         default:
@@ -480,6 +476,8 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
             return -1;
     }
     
+    write_atomic_chunks(rep_fd, reply->data, reply->length);
+    free_string(reply);
     return 0;
 }
 
@@ -511,6 +509,7 @@ int main(int argc, char *argv[]) {
 
     if (create_pipes(request_pipe,reply_pipe) != 0) {
         fprintf(stderr, "Failed to create pipes\n");
+        perror("");
         return 1;
     }
 
@@ -585,8 +584,7 @@ int main(int argc, char *argv[]) {
     /* Main loop: exit when a stop signal is received */
     
     req_fd = open(request_pipe, O_RDWR | O_NONBLOCK);
-    rep_fd = open(reply_pipe, O_WRONLY | O_NONBLOCK);
-
+    rep_fd = open(reply_pipe, O_RDWR | O_NONBLOCK);
     int status;
     
     while(!stop_requested) {
@@ -610,8 +608,6 @@ int main(int argc, char *argv[]) {
             if(handle_status < 0){
                 perror("handle_request failed");
                 break;
-            } else if (handle_status == 1) { // if terminate
-                break;
             }
         }
         
@@ -621,7 +617,8 @@ int main(int argc, char *argv[]) {
     cleanup:
         if (req_fd >= 0) close(req_fd);
         if (rep_fd >= 0) close(rep_fd);
-        /* Perform full cleanup of task structures */
+        /* Perform full cleanup of task s    printf("%04x\n", anstype);
+    printf("yooo1\n");tructures */
         if (task_array) {
             free_task_arr(task_array);
             free(task_array);

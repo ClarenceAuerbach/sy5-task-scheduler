@@ -19,7 +19,7 @@ int handle_list(int req_fd, int rep_fd) {
     string_t *msg = new_string("");
     if (!msg) return -1;
     
-    if (write_uint16(msg, OP_LIST) != 0) {
+    if (write16(msg, OP_LIST) != 0) {
         free_string(msg);
         return -1;
     }
@@ -32,7 +32,7 @@ int handle_list(int req_fd, int rep_fd) {
     
     // Read response
     uint16_t anstype;
-    if (read_uint16(rep_fd, &anstype) != 0) {
+    if (read16(rep_fd, &anstype) != 0) {
         fprintf(stderr, "Failed to read answer type\n");
         return -1;
     }
@@ -44,7 +44,7 @@ int handle_list(int req_fd, int rep_fd) {
     
     // Read NBTASKS
     uint32_t nbtasks;
-    if (read_uint32(rep_fd, &nbtasks) != 0) {
+    if (read32(rep_fd, &nbtasks) != 0) {
         fprintf(stderr, "Failed to read nbtasks\n");
         return -1;
     }
@@ -53,21 +53,21 @@ int handle_list(int req_fd, int rep_fd) {
     for (uint32_t i = 0; i < nbtasks; i++) {
         // Read TASKID
         uint64_t taskid;
-        if (read_uint64(rep_fd, &taskid) != 0) return -1;
+        if (read64(rep_fd, &taskid) != 0) return -1;
         
         // Read TIMING
         uint64_t minutes;
         uint32_t hours;
         uint8_t days;
-        if (read_uint64(rep_fd, &minutes) != 0) return -1;
-        if (read_uint32(rep_fd, &hours) != 0) return -1;
+        if (read64(rep_fd, &minutes) != 0) return -1;
+        if (read32(rep_fd, &hours) != 0) return -1;
         unsigned char dbuf[1];
         if (read(rep_fd, dbuf, 1) != 1) return -1;
         days = dbuf[0];
         
         // Read COMMANDLINE
         uint32_t cmdlen;
-        if (read_uint32(rep_fd, &cmdlen) != 0) return -1;
+        if (read32(rep_fd, &cmdlen) != 0) return -1;
         char *cmdline = malloc(cmdlen + 1);
         if (!cmdline) return -1;
         if (read(rep_fd, cmdline, cmdlen) != (ssize_t)cmdlen) {
@@ -105,12 +105,12 @@ int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
     string_t *msg = new_string("");
     if (!msg) return -1;
     
-    if (write_uint16(msg, OP_TIMES_EXITCODES) != 0) {
+    if (write16(msg, OP_TIMES_EXITCODES) != 0) {
         free_string(msg);
         return -1;
     }
     
-    if (write_uint64(msg, taskid) != 0) {
+    if (write64(msg, taskid) != 0) {
         free_string(msg);
         return -1;
     }
@@ -123,30 +123,31 @@ int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
     
     // Read response
     uint16_t anstype;
-    if (read_uint16(rep_fd, &anstype) != 0) return -1;
+    if (read16(rep_fd, &anstype) != 0) return -1;
     
     if (anstype == ANS_ERROR) {
         uint16_t errcode;
-        if (read_uint16(rep_fd, &errcode) != 0) return -1;
+        if (read16(rep_fd, &errcode) != 0) return -1;
         if (errcode == ERR_NOT_FOUND) {
             fprintf(stderr, "Task not found\n");
         }
+        fprintf(stderr, "Unknown error\n");
         return -1;
     }
     
     // Read NBRUNS
     uint32_t nbruns;
-    if (read_uint32(rep_fd, &nbruns) != 0) return -1;
+    if (read32(rep_fd, &nbruns) != 0) return -1;
     
     // Read and display each run
     for (uint32_t i = 0; i < nbruns; i++) {
-        uint64_t timestamp;
+        uint64_t time;
         uint16_t exitcode;
         
-        if (read_uint64(rep_fd, &timestamp) != 0) return -1;
-        if (read_uint16(rep_fd, &exitcode) != 0) return -1;
+        if (read64(rep_fd, &time) != 0) return -1;
+        if (read16(rep_fd, &exitcode) != 0) return -1;
         
-        time_t t = (time_t)timestamp;
+        time_t t = (time_t)time;
         struct tm *tm = localtime(&t);
         if (!tm) continue;
         
@@ -164,14 +165,13 @@ int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
  */
 int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
     string_t *msg = new_string("");
-    if (!msg) return -1;
     
-    if (write_uint16(msg, is_stdout ? OP_STDOUT : OP_STDERR) != 0) {
+    if (write16(msg, is_stdout ? OP_STDOUT : OP_STDERR) != 0) {
         free_string(msg);
         return -1;
     }
     
-    if (write_uint64(msg, taskid) != 0) {
+    if (write64(msg, taskid) != 0) {
         free_string(msg);
         return -1;
     }
@@ -182,13 +182,14 @@ int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
     }
     free_string(msg);
     
+
     // Read response
     uint16_t anstype;
-    if (read_uint16(rep_fd, &anstype) != 0) return -1;
+    if (read16(rep_fd, &anstype) != 0) return -1;
     
     if (anstype == ANS_ERROR) {
         uint16_t errcode;
-        if (read_uint16(rep_fd, &errcode) != 0) return -1;
+        if (read16(rep_fd, &errcode) != 0) return -1;
         if (errcode == ERR_NOT_FOUND) {
             fprintf(stderr, "Task not found\n");
         } else if (errcode == ERR_NOT_RUN) {
@@ -199,17 +200,27 @@ int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
     
     // Read OUTPUT
     uint32_t len;
-    if (read_uint32(rep_fd, &len) != 0) return -1;
-    
+    if (read32(rep_fd, &len) != 0) return -1;
+
     char *output = malloc(len + 1);
     if (!output) return -1;
-    
-    if (len > 0 && read(rep_fd, output, len) != (ssize_t)len) {
-        free(output);
-        return -1;
+
+    char *p = output;
+    size_t remaining = len;
+
+    while (remaining > 0) {
+        ssize_t nb = read(rep_fd, p, remaining);
+        if (nb == 0) {
+            // EOF reached unexpectedly
+            fprintf(stderr, "Unexpected EOF\n");
+            free(output);
+            return -1;
+        }
+        remaining -= nb;
+        p += nb;
     }
+
     output[len] = '\0';
-    
     printf("%s", output);
     free(output);
     
@@ -223,12 +234,12 @@ int handle_remove(int req_fd, int rep_fd, uint64_t taskid) {
     string_t *msg = new_string("");
     if (!msg) return -1;
     
-    if (write_uint16(msg, OP_REMOVE) != 0) {
+    if (write16(msg, OP_REMOVE) != 0) {
         free_string(msg);
         return -1;
     }
     
-    if (write_uint64(msg, taskid) != 0) {
+    if (write64(msg, taskid) != 0) {
         free_string(msg);
         return -1;
     }
@@ -241,11 +252,11 @@ int handle_remove(int req_fd, int rep_fd, uint64_t taskid) {
     
     // Read response
     uint16_t anstype;
-    if (read_uint16(rep_fd, &anstype) != 0) return -1;
+    if (read16(rep_fd, &anstype) != 0) return -1;
     
     if (anstype == ANS_ERROR) {
         uint16_t errcode;
-        if (read_uint16(rep_fd, &errcode) != 0) return -1;
+        if (read16(rep_fd, &errcode) != 0) return -1;
         if (errcode == ERR_NOT_FOUND) {
             fprintf(stderr, "Task not found\n");
         }
@@ -262,14 +273,10 @@ int handle_terminate(int req_fd, int rep_fd) {
     string_t *msg = new_string("");
     if (!msg) return -1;
     
-    if (write_uint16(msg, OP_TERMINATE) != 0) {
+    if (write16(msg, OP_TERMINATE) != 0) {
         free_string(msg);
         return -1;
     }
-    uint16_t tmp = OP_TERMINATE;
-    
-    printf("%c%c\n", *((char*) &tmp) ,*(((char*) &tmp) +1));
-    printf("%s\n", msg->data);
     
     if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
         free_string(msg);
@@ -279,7 +286,7 @@ int handle_terminate(int req_fd, int rep_fd) {
 
     // Read response
     uint16_t anstype;
-    if (read_uint16(rep_fd, &anstype) != 0) return -1;
+    if (read16(rep_fd, &anstype) != 0) return -1;
     
     return 0;
 }
@@ -318,7 +325,18 @@ int main(int argc, char **argv) {
         if(ret) return -1;
     }
 
-    fcntl(rep_fd, 0);
+    /* Blocks response pipe*/
+    int flags = fcntl(rep_fd, F_GETFL);
+    if (flags == -1) {
+        perror("fcntl F_GETFL");
+        return -1;
+    }
+
+    if (fcntl(rep_fd, F_SETFL, flags & ~O_NONBLOCK) == -1) {
+        perror("fcntl F_SETFL");
+        return -1;
+    }
+    
 
     while ((opt = getopt(argc, argv, "lqr:x:o:e:p:")) != -1) {
         
@@ -328,7 +346,6 @@ int main(int argc, char **argv) {
             break;
 
         case 'q':
-            printf("%c\n", opt);
             ret = handle_terminate(req_fd, rep_fd);
             break;
 

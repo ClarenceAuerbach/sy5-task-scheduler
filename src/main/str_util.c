@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -60,6 +61,73 @@ int append(string_t *dest, const char *s) {
 
     memcpy(dest->data + dest->length, s, src_len+1);
     dest->length += src_len;
+
+    return 0;
+}
+
+int appendn(string_t *dest, const char *s, int n) {
+    size_t min_capacity = dest->length + n;
+    
+    if (dest->capacity < min_capacity) {
+        size_t new_capacity = 2 * dest->capacity;
+        if (new_capacity < min_capacity) new_capacity = min_capacity;
+        char *new_data = realloc(dest->data, new_capacity);
+        if (!new_data) return -1;
+        dest->data = new_data;
+        dest->capacity = new_capacity;
+    }
+
+    memcpy(dest->data + dest->length, &s, n);
+    dest->length += n;
+    return 0;
+}
+
+int append16(string_t *dest, uint16_t s) {
+    size_t min_capacity = dest->length + 2 ;
+    
+    if (dest->capacity < min_capacity) {
+        size_t new_capacity = 2 * dest->capacity;
+        if (new_capacity < min_capacity) new_capacity = min_capacity;
+        char *new_data = realloc(dest->data, new_capacity);
+        if (!new_data) return -1;
+        dest->data = new_data;
+        dest->capacity = new_capacity;
+    }
+
+    memcpy(dest->data + dest->length, &s, 2);
+    dest->length += 2;
+    return 0;
+}
+
+int append32(string_t *dest, uint32_t s) {
+    size_t min_capacity = dest->length + 4 ;
+    if (dest->capacity < min_capacity) {
+        size_t new_capacity = 2 * dest->capacity;
+        if (new_capacity < min_capacity) new_capacity = min_capacity;
+        char *new_data = realloc(dest->data, new_capacity);
+        if (!new_data) return -1;
+        dest->data = new_data;
+        dest->capacity = new_capacity;
+    }
+
+    memcpy(dest->data + dest->length, &s, 4);
+    dest->length += 4;
+
+    return 0;
+}
+int append64(string_t *dest, uint64_t s) {
+    size_t min_capacity = dest->length + 8 ;
+    if (dest->capacity < min_capacity) {
+        size_t new_capacity = 2 * dest->capacity;
+        if (new_capacity < min_capacity) new_capacity = min_capacity;
+        char *new_data = realloc(dest->data, new_capacity);
+        if (!new_data) return -1;
+        dest->data = new_data;
+        dest->capacity = new_capacity;
+    }
+
+    memcpy(dest->data + dest->length, &s, 8);
+    dest->length += 8;
 
     return 0;
 }

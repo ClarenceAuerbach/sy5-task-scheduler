@@ -42,7 +42,7 @@ int write_atomic_chunks(int fd, char *data, size_t len);
  * @param val value to write
  * @return 0 on success, -1 on error
  */
-int write_uint16(string_t *msg, uint16_t val);
+int write16(string_t *msg, uint16_t val);
 
 /**
  * Write a uint32 in big-endian to a string_t
@@ -50,7 +50,7 @@ int write_uint16(string_t *msg, uint16_t val);
  * @param val value to write
  * @return 0 on success, -1 on error
  */
-int write_uint32(string_t *msg, uint32_t val);
+int write32(string_t *msg, uint32_t val);
 
 /**
  * Write a uint64 in big-endian to a string_t
@@ -58,7 +58,7 @@ int write_uint32(string_t *msg, uint32_t val);
  * @param val value to write
  * @return 0 on success, -1 on error
  */
-int write_uint64(string_t *msg, uint64_t val);
+int write64(string_t *msg, uint64_t val);
 
 /**
  * Parse a comma-separated string of numbers and build a bitmap
@@ -108,7 +108,7 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd);
  * @param val pointer to store the read value
  * @return 0 on success, -1 on error
  */
-int read_uint16(int fd, uint16_t *val);
+int read16(int fd, uint16_t *val);
 
 /**
  * Read a uint32 in big-endian from a file descriptor
@@ -116,7 +116,7 @@ int read_uint16(int fd, uint16_t *val);
  * @param val pointer to store the read value
  * @return 0 on success, -1 on error
  */
-int read_uint32(int fd, uint32_t *val);
+int read32(int fd, uint32_t *val);
 
 /**
  * Read a uint64 in big-endian from a file descriptor
@@ -124,7 +124,7 @@ int read_uint32(int fd, uint32_t *val);
  * @param val pointer to store the read value
  * @return 0 on success, -1 on error
  */
-int read_uint64(int fd, uint64_t *val);
+int read64(int fd, uint64_t *val);
 
 /**
  * Converts timing or bitmap to a readable string
