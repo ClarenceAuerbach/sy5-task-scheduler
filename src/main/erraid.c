@@ -328,6 +328,7 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
     uint16_t opcode;
     unsigned char buf[2];
     
+    printf("In handle_request\n");
     /* Retry read on EINTR (signal interruption) */
     ssize_t r;
     while (1) {
@@ -337,11 +338,15 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
         /* EINTR: signal interrupted read, retry */
     }
     
+    printf("Finished reading\n");
+    
     if (r == 0) {
+        printf("r == 0\n");
         return 0; 
     }
     
     if (r < 0) {
+        printf("r < 0\n");
         return 0;   /* real error on read, return gracefully */
     }
 
@@ -634,7 +639,7 @@ int main(int argc, char *argv[]) {
             break;
         }
         if (status > 0) { // check tubes
-            printf("Checking tubes");
+            printf("Checking tubes\n");
             int handle_status = handle_request(req_fd, rep_fd, task_array, tasks_path) ;
             
             if(handle_status < 0){
