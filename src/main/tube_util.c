@@ -10,7 +10,7 @@
 #include "tube_util.h"
 #include "str_util.h"
 
-int write_atomic_chunks(int fd, char *s, size_t len) {
+int write_atomic_chunks(int fd, uint8_t *s, size_t len) {
     while (len > 0) {
         size_t chunk = len > PIPE_BUF ? PIPE_BUF : len;
         int w = write(fd, s, chunk);
@@ -21,21 +21,21 @@ int write_atomic_chunks(int fd, char *s, size_t len) {
     return 0;
 }
 
-int write16(string_t *msg, uint16_t val) {
+int write16(buffer_t *msg, uint16_t val) {
     uint16_t be_val = htobe16(val);
-    append16(msg, be_val);
+    appendn(msg, &be_val, 2);
     return 0;
 }
 
-int write32(string_t *msg, uint32_t val) {
+int write32(buffer_t *msg, uint32_t val) {
     uint32_t be_val = htobe32(val);
-    append32(msg, be_val);
+    appendn(msg, &be_val, 4);
     return 0;
 }
 
-int write64(string_t *msg, uint64_t val) {
+int write64(buffer_t *msg, uint64_t val) {
     uint64_t be_val = htobe64(val);
-    append64(msg, be_val);
+    appendn(msg, &be_val, 8);
     return 0;
 }
 
@@ -142,13 +142,11 @@ uint64_t parse_timing_field(const char *str, int max_value) {
     return bitmap;
 }
 
-int write_timing(string_t *msg, const char *minutes, const char *hours, 
+int write_timing(buffer_t *msg, const char *minutes, const char *hours, 
                  const char *days, int no_timing) {
     if (no_timing) {
         if (write64(msg, 0) != 0) return -1;
         if (write32(msg, 0) != 0) return -1;
-        char zero = 0;
-        if (append(msg, &zero) != 0) return -1;
         return 0;
     }
     
@@ -181,38 +179,34 @@ int write_timing(string_t *msg, const char *minutes, const char *hours,
         days_bitmap = (uint8_t)parse_timing_field(days, 6);
     }
     char day_byte = days_bitmap;
-    if (append(msg, &day_byte) != 0) return -1;
+    if (appendn(msg, &day_byte, 1) != 0) return -1;
     
     return 0;
 }
 
-int write_arguments(string_t *msg, int argc, char **argv) {
-     
+int write_arguments(buffer_t *msg, int argc, char **argv) {
     if (write32(msg, argc) != 0) return -1;
     
      
     for (int i = 0; i < argc; i++) {
         uint32_t len = strlen(argv[i]);
-         
+
         if (write32(msg, len) != 0) return -1;
-        
-        for (size_t j = 0; j < len; j++) {
-            if (append(msg, &argv[i][j]) != 0) return -1;
-        }
+        appendn(msg, argv[i], len);
     }
     
     return 0;
 }
 
 int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
-    string_t *path = new_string("");
+    string_t *path = new_str("");
     if (!path) return -1;
     
     if (!pipes_dir) {
         char *user = getenv("USER");
         if (!user) {
             fprintf(stderr, "USER environment variable not set\n");
-            free_string(path);
+            free_str(path);
             return -1;
         }
         append(path, "/tmp/");
@@ -231,12 +225,12 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
 
     if (*req_fd < 0) {
         perror("open request pipe");
-        free_string(path);
+        free_str(path);
         return -1;
     }
     
     
-    truncate_to(path, base_len);
+    trunc_str_to(path, base_len);
     append(path, "/erraid-reply-pipe");
 
     *rep_fd = open(path->data, O_RDONLY | O_NONBLOCK);
@@ -244,11 +238,11 @@ int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
     if (*rep_fd < 0) {
         perror("open reply pipe");
         close(*req_fd);
-        free_string(path);
+        free_str(path);
         return -1;
     }
     
-    free_string(path);
+    free_str(path);
     return 0;
 }
 

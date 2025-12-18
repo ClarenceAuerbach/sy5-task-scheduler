@@ -94,6 +94,23 @@
       "-D_DEFAULT_SOURCE",
       "-c",
       "-o",
+      "obj/main/tube_util.o",
+      "src/main/tube_util.c"
+    ],
+    "directory": "/home/louis/school/s5/sy5/sy5-task-scheduler",
+    "file": "/home/louis/school/s5/sy5/sy5-task-scheduler/src/main/tube_util.c",
+    "output": "/home/louis/school/s5/sy5/sy5-task-scheduler/obj/main/tube_util.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-std=c17",
+      "-Iinclude",
+      "-D_DEFAULT_SOURCE",
+      "-c",
+      "-o",
       "obj/main/tadmor.o",
       "src/main/tadmor.c"
     ],

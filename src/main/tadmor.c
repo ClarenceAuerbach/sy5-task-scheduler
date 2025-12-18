@@ -14,20 +14,20 @@
 
 /* Send a LIST request and display response */
 int handle_list(int req_fd, int rep_fd) {
-    string_t *msg = new_string("");
+    buffer_t *msg = init_buf();
     if (!msg) return -1;
-    
+
     if (write16(msg, OP_LIST) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
-    
+
     if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
-    free_string(msg);
-    
+    free_buf(msg);
+
     // Read response
     uint16_t anstype;
     if (read16(rep_fd, &anstype) != 0) {
@@ -109,24 +109,24 @@ int handle_list(int req_fd, int rep_fd) {
 
 /* Send TIMES_EXITCODES request and display response */
 int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
-    string_t *msg = new_string("");
+    buffer_t *msg = init_buf();
     if (!msg) return -1;
     
     if (write16(msg, OP_TIMES_EXITCODES) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
     
     if (write64(msg, taskid) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
     
     if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
-    free_string(msg);
+    free_buf(msg);
     
     // Read response
     uint16_t anstype;
@@ -201,23 +201,23 @@ int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
 }
 /* Send STDOUT or STDERR request and display response */
 int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
-    string_t *msg = new_string("");
+    buffer_t *msg = init_buf();
     
     if (write16(msg, is_stdout ? OP_STDOUT : OP_STDERR) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
     
     if (write64(msg, taskid) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
     
     if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
-    free_string(msg);
+    free_buf(msg);
     
 
     // Read response
@@ -266,24 +266,24 @@ int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
 
 /* Send REMOVE request */
 int handle_remove(int req_fd, int rep_fd, uint64_t taskid) {
-    string_t *msg = new_string("");
+    buffer_t *msg = init_buf();
     if (!msg) return -1;
     
     if (write16(msg, OP_REMOVE) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
     
     if (write64(msg, taskid) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
     
     if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
-    free_string(msg);
+    free_buf(msg);
     
     // Read response
     uint16_t anstype;
@@ -303,19 +303,19 @@ int handle_remove(int req_fd, int rep_fd, uint64_t taskid) {
 
 /* Send TERMINATE request */
 int handle_terminate(int req_fd, int rep_fd) {
-    string_t *msg = new_string("");
+    buffer_t *msg = init_buf();
     if (!msg) return -1;
     
     if (write16(msg, OP_TERMINATE) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
     
     if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
-        free_string(msg);
+        free_buf(msg);
         return -1;
     }
-    free_string(msg);
+    free_buf(msg);
 
     // Read response
     uint16_t anstype;

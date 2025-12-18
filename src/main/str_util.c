@@ -5,7 +5,25 @@
 
 #include "str_util.h"
 
-string_t *new_string(char *s) {
+// Builds an empty string
+string_t *init_str(void) {
+    string_t *res = malloc(sizeof(string_t));
+    res->data = NULL;
+    res->capacity = 0;
+    res->length = 0;
+    return res;
+}
+
+// Builds an empty buffer
+buffer_t *init_buf(void) {
+    buffer_t *res = malloc(sizeof(buffer_t));
+    res->data = NULL;
+    res->capacity = 0;
+    res->length = 0;
+    return res;
+}
+
+string_t *new_str(char *s) {
     string_t *res = malloc(sizeof(string_t));
     if (!res) return NULL;
 
@@ -24,14 +42,21 @@ string_t *new_string(char *s) {
     return res;
 }
 
-void free_string(string_t *string) {
+void free_str(string_t *string) {
     if (string) {
         if (string->data) free(string->data);
         free(string);
     }
 }
 
-string_t *copy_string(string_t *string) {
+void free_buf(buffer_t *buf) {
+    if (buf) {
+        if (buf->data) free(buf->data);
+        free(buf);
+    }
+}
+
+string_t *copy_str(string_t *string) {
     string_t *res = malloc(sizeof(string_t));
     if (!res) return NULL;
     
@@ -44,6 +69,20 @@ string_t *copy_string(string_t *string) {
     res->capacity = string->capacity;
     res->length = string->length;
     memcpy(res->data, string->data, string->length + 1);
+    return res;
+}
+
+buffer_t *copy_buf(buffer_t *buf) {
+    buffer_t *res = malloc(sizeof(buffer_t));
+    if (!res) return NULL;
+    res->data = malloc(buf->capacity);
+    if (!res->data) {
+        free(res);
+        return NULL;
+    }
+    res->capacity = buf->capacity;
+    res->length = buf->length;
+    memcpy(res->data, buf->data, buf->length);
     return res;
 }
 
@@ -65,81 +104,47 @@ int append(string_t *dest, const char *s) {
     return 0;
 }
 
-int appendn(string_t *dest, const char *s, int n) {
+int appendn(buffer_t *dest, const void *val, size_t n) {
     size_t min_capacity = dest->length + n;
-    
+
     if (dest->capacity < min_capacity) {
         size_t new_capacity = 2 * dest->capacity;
         if (new_capacity < min_capacity) new_capacity = min_capacity;
-        char *new_data = realloc(dest->data, new_capacity);
+        uint8_t *new_data = realloc(dest->data, new_capacity);
         if (!new_data) return -1;
         dest->data = new_data;
         dest->capacity = new_capacity;
     }
 
-    memcpy(dest->data + dest->length, s, n);
+    memcpy(dest->data + dest->length, val, n);
     dest->length += n;
     return 0;
 }
 
-int append16(string_t *dest, uint16_t s) {
-    size_t min_capacity = dest->length + 2 ;
-    
-    if (dest->capacity < min_capacity) {
-        size_t new_capacity = 2 * dest->capacity;
-        if (new_capacity < min_capacity) new_capacity = min_capacity;
-        char *new_data = realloc(dest->data, new_capacity);
-        if (!new_data) return -1;
-        dest->data = new_data;
-        dest->capacity = new_capacity;
-    }
-
-    memcpy(dest->data + dest->length, &s, 2);
-    dest->length += 2;
-    return 0;
-}
-
-int append32(string_t *dest, uint32_t s) {
-    size_t min_capacity = dest->length + 4 ;
-    if (dest->capacity < min_capacity) {
-        size_t new_capacity = 2 * dest->capacity;
-        if (new_capacity < min_capacity) new_capacity = min_capacity;
-        char *new_data = realloc(dest->data, new_capacity);
-        if (!new_data) return -1;
-        dest->data = new_data;
-        dest->capacity = new_capacity;
-    }
-
-    memcpy(dest->data + dest->length, &s, 4);
-    dest->length += 4;
-
-    return 0;
-}
-int append64(string_t *dest, uint64_t s) {
-    size_t min_capacity = dest->length + 8 ;
-    if (dest->capacity < min_capacity) {
-        size_t new_capacity = 2 * dest->capacity;
-        if (new_capacity < min_capacity) new_capacity = min_capacity;
-        char *new_data = realloc(dest->data, new_capacity);
-        if (!new_data) return -1;
-        dest->data = new_data;
-        dest->capacity = new_capacity;
-    }
-
-    memcpy(dest->data + dest->length, &s, 8);
-    dest->length += 8;
-
-    return 0;
-}
-
 // Removes n characters from the string
-void truncate_by(string_t *str, int n) {
+void trunc_str_by(string_t *str, size_t n) {
+    if (n > str->length) n = str->length;
     str->data[str->length - n] = '\0';
     str->length -= n;
 }
 
+// Removes n bytes from the string
+void trunc_buf_by(buffer_t *buf, size_t n) {
+    if (n > buf->length) n = buf->length;
+    uint8_t *end_of_data = buf->data + (buf->length - n);
+    memset(end_of_data, '\0', n);
+    buf->length -= n;
+}
+
 // Removes characters such that the length of the string is n
-void truncate_to(string_t *str, int n) {
+void trunc_str_to(string_t *str, size_t n) {
     str->data[n] = '\0';
     str->length = n;
+}
+
+// Removes bytes such that the length of the buffer is n
+void trunc_buf_to(buffer_t *buf, size_t n) {
+    uint8_t *end_of_data = buf->data + n;
+    memset(end_of_data, '\0', n);
+    buf->length -= n;
 }

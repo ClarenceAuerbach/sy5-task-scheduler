@@ -34,7 +34,7 @@
  * @param len length of data
  * @return 0 on success, -1 on error
  */
-int write_atomic_chunks(int fd, char *data, size_t len);
+int write_atomic_chunks(int fd, uint8_t *data, size_t len);
 
 /**
  * Write a uint16 in big-endian to a string_t
@@ -42,7 +42,7 @@ int write_atomic_chunks(int fd, char *data, size_t len);
  * @param val value to write
  * @return 0 on success, -1 on error
  */
-int write16(string_t *msg, uint16_t val);
+int write16(buffer_t *msg, uint16_t val);
 
 /**
  * Write a uint32 in big-endian to a string_t
@@ -50,7 +50,7 @@ int write16(string_t *msg, uint16_t val);
  * @param val value to write
  * @return 0 on success, -1 on error
  */
-int write32(string_t *msg, uint32_t val);
+int write32(buffer_t *msg, uint32_t val);
 
 /**
  * Write a uint64 in big-endian to a string_t
@@ -58,7 +58,7 @@ int write32(string_t *msg, uint32_t val);
  * @param val value to write
  * @return 0 on success, -1 on error
  */
-int write64(string_t *msg, uint64_t val);
+int write64(buffer_t *msg, uint64_t val);
 
 /**
  * Parse a comma-separated string of numbers and build a bitmap
@@ -80,7 +80,7 @@ uint64_t parse_timing_field(const char *str, int max_value);
  * @param no_timing if 1, all fields are set to 0 (task without timing)
  * @return 0 on success, -1 on error
  */
-int write_timing(string_t *msg, const char *minutes, const char *hours, 
+int write_timing(buffer_t *msg, const char *minutes, const char *hours, 
                  const char *days, int no_timing);
 
 /**
@@ -91,7 +91,7 @@ int write_timing(string_t *msg, const char *minutes, const char *hours,
  * @param argv array of arguments
  * @return 0 on success, -1 on error
  */
-int write_arguments(string_t *msg, int argc, char **argv);
+int write_arguments(buffer_t *msg, int argc, char **argv);
 
 /**
  * Open communication pipes with the erraid daemon

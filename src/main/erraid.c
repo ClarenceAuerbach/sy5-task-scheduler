@@ -315,7 +315,7 @@ void command_to_string(command_t *cmd, string_t *result) {
 int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_path) {
     if (fork()) return 0;
     uint16_t opcode;
-    string_t *reply = new_string("");
+    buffer_t *reply = init_buf();
 
     int r = read16(req_fd, &opcode);
     if (r == -1) {
@@ -340,16 +340,16 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
                 write32(reply, t->hours);      // uint32 big-endian
                 
                 char days_byte = (char)t->daysofweek;
-                append(reply, &days_byte);
+                appendn(reply, &days_byte, 1);
                 
-                string_t *cmdline = new_string("");
+                string_t *cmdline = new_str("");
                 command_to_string(tasks->tasks[i]->command, cmdline);
                 
                 write32(reply, (uint32_t)cmdline->length);
                 
                 appendn(reply, cmdline->data, cmdline->length);
                 
-                free_string(cmdline);
+                free_str(cmdline);
             }
             break;
         }
@@ -415,7 +415,7 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
         case OP_STDERR: {
             uint64_t taskid;
             if (read64(req_fd, &taskid) < 0) {
-                free_string(reply);
+                free_buf(reply);
                 return -1;
             }
             int idx = find_task_index(tasks, taskid);
@@ -424,33 +424,32 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
                 write16(reply, ERR_NOT_FOUND);
                 break;
             }
-            
+
             char path[PATH_MAX];
             snprintf(path, PATH_MAX, "%s/%ld/%s", 
                      tasks_path->data, taskid, 
                      opcode == OP_STDOUT ? "stdout" : "stderr");
-            
+
             int fd = open(path, O_RDONLY);
             if (fd < 0) {
                 write16(reply, ANS_ERROR);
                 write16(reply, ERR_NOT_RUN);
                 break;
             }
-            
-            string_t *output = new_string("");
-            char buf[1025];
+
+            buffer_t *output = init_buf();
+            char buf[1024];
             int n;
             while ((n = read(fd, buf, sizeof(buf))) > 0) {
-                buf[n] = '\0';
-                append(output, buf);
+                appendn(output, buf, n);
             }
             close(fd);
-            
+
             write16(reply, ANS_OK);
             write32(reply, (uint32_t)output->length);
-            append(reply, output->data);
-            
-            free_string(output);
+            appendn(reply, output->data, output->length);
+
+            free_buf(output);
             break;
         }
 
@@ -466,7 +465,7 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
     }
     
     write_atomic_chunks(rep_fd, reply->data, reply->length);
-    free_string(reply);
+    free_buf(reply);
     exit(0);
 }
 
@@ -525,7 +524,7 @@ int main(int argc, char *argv[]) {
     task_array = malloc(sizeof(task_array_t));
     if (!task_array) goto cleanup;
 
-    tasks_path = new_string(RUN_DIRECTORY);
+    tasks_path = new_str(RUN_DIRECTORY);
     append(tasks_path, "/tasks");
 
     /* creates tasks directory if non existent*/
@@ -603,6 +602,6 @@ int main(int argc, char *argv[]) {
             free_task_arr(task_array);
             free(task_array);
         }
-        if (tasks_path) free_string(tasks_path);
+        if (tasks_path) free_str(tasks_path);
     return ret;
 }
