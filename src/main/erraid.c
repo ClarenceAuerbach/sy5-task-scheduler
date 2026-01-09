@@ -19,11 +19,12 @@
 
 #include "erraid_util.h"
 #include "str_util.h"
-#include "tube_util.h"
+#include "erraid_req.h"
 #include "task.h"
 #include "timing_t.h"
 
-char RUN_DIRECTORY[PATH_MAX];
+string_t *RUN_DIRECTORY;
+string_t *PIPES_DIRECTORY;
 
 static volatile sig_atomic_t stop_requested = 0;
 
@@ -262,24 +263,22 @@ cleanup:
     return ret;
 }
 
-int create_pipes(char *request_pipe, char *reply_pipe) {
-    char pipes_dir[PATH_MAX+7];
-    snprintf(pipes_dir, PATH_MAX+7, "%s/pipes", RUN_DIRECTORY);
-
-    if (mkdir(pipes_dir, 0700) != 0 && errno != EEXIST) {
+int create_pipes(string_t *request_pipe_path, string_t *reply_pipe_path) {
+    if (mkdir(PIPES_DIRECTORY->data, 0700) != 0 && errno != EEXIST) {
         perror("mkdir pipes_dir");
         return -1;
     }
 
-    snprintf(request_pipe, PATH_MAX+27, "%s/erraid-request-pipe", pipes_dir);
-    snprintf(reply_pipe, PATH_MAX+25, "%s/erraid-reply-pipe", pipes_dir);
-
-    if (mkfifo(request_pipe, 0600) != 0 && errno != EEXIST) {
+    set_str(request_pipe_path, PIPES_DIRECTORY->data);
+    append(request_pipe_path, "/erraid-request-pipe");
+    set_str(reply_pipe_path, PIPES_DIRECTORY->data);
+    append(reply_pipe_path, "/erraid-reply-pipe");
+    if (mkfifo(request_pipe_path->data, 0600) != 0 && errno != EEXIST) {
         perror("mkfifo request pipe");
         return -1;
     }
 
-    if (mkfifo(reply_pipe, 0600) != 0 && errno != EEXIST) {
+    if (mkfifo(reply_pipe_path->data, 0600) != 0 && errno != EEXIST) {
         perror("mkfifo reply pipe");
         return -1;
     }
@@ -287,251 +286,94 @@ int create_pipes(char *request_pipe, char *reply_pipe) {
     return 0;
 }
 
-int find_task_index(task_array_t *tasks, uint64_t taskid) {
-    for (int i = 0; i < tasks->length; i++) {
-        if (tasks->tasks[i]->id == taskid) {
-            return i;
-        }
-    }
-    return -1;
-}
+int main(int argc, char *argv[]) {
+    int foreground = 0;
+    int opt;
 
-void command_to_string(command_t *cmd, string_t *result) {
-    if (!strcmp(cmd->type, "SI")) {
-        for (uint32_t i = 0; i < cmd->args.argc; i++) {
-            if (i > 0) append(result, " ");
-            append(result, cmd->args.argv[i].data);
-        }
-    } else if (!strcmp(cmd->type, "SQ")) {
-        append(result, "(");
-        for (uint32_t i = 0; i < cmd->nbcmds; i++) {
-            if (i > 0) append(result, "; ");
-            command_to_string(&cmd->cmd[i], result);
-        }
-        append(result, ")");
-    }
-}
+    /* Defaults */
+    RUN_DIRECTORY = new_str("/tmp/");
+    append(RUN_DIRECTORY, getenv("USER"));
+    append(RUN_DIRECTORY, "/erraid");
+    PIPES_DIRECTORY = new_str(RUN_DIRECTORY->data);
+    append(PIPES_DIRECTORY, "/pipes");
 
-int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_path) {
-    if (fork()) return 0;
-    uint16_t opcode;
-    buffer_t *reply = init_buf();
-
-    int r = read16(req_fd, &opcode);
-    if (r == -1) {
-        perror("Reading opcode");
-        return -1;
-    }
-    
-    printf("Received opcode: 0x%04x\n", opcode);
-    
-    switch(opcode) {
-        case OP_LIST: {
-            write16(reply, ANS_OK);
-            
-            write32(reply, (uint32_t)tasks->length);
-            
-            for (int i = 0; i < tasks->length; i++) {
-                write64(reply, tasks->tasks[i]->id);
-                
-                // TIMING
-                timing_t *t = &tasks->tasks[i]->timings;
-                write64(reply, t->minutes);   // uint64 big-endian
-                write32(reply, t->hours);      // uint32 big-endian
-                
-                char days_byte = (char)t->daysofweek;
-                appendn(reply, &days_byte, 1);
-                
-                string_t *cmdline = new_str("");
-                command_to_string(tasks->tasks[i]->command, cmdline);
-                
-                write32(reply, (uint32_t)cmdline->length);
-                
-                appendn(reply, cmdline->data, cmdline->length);
-                
-                free_str(cmdline);
-            }
+    while ((opt = getopt(argc, argv, "fFr:R:p:P:")) != -1) {
+        switch (opt) {
+        case 'f':
+        case 'F':
+            foreground = 1;
             break;
-        }
-
-        case OP_TIMES_EXITCODES: {
-            uint64_t taskid;
-            if (read64(req_fd, &taskid) < 0) {
-                return -1;
-            }
-            
-            int idx = find_task_index(tasks, taskid);
-            if (idx < 0) {
-                // Task not found
-                write16(reply, ANS_ERROR);
-                write16(reply, ERR_NOT_FOUND);
-                break;
-            }
-            
-            char te_path[PATH_MAX];
-            snprintf(te_path, PATH_MAX, "%s/%ld/times-exitcodes", 
-                    tasks_path->data, taskid);
-            
-            int te_fd = open(te_path, O_RDONLY);
-            if (te_fd < 0) {
-                write16(reply, ANS_OK);
-                write32(reply, (uint32_t)0);
-                break;
-            }
-            
-            struct stat st;
-            if (fstat(te_fd, &st) < 0) {
-                close(te_fd);
-                write16(reply, ANS_ERROR);
-                write16(reply, ERR_NOT_FOUND);
-                break;
-            }
-            
-            uint32_t nbruns = st.st_size / 10;
-            
-            write16(reply, ANS_OK);
-            write32(reply, nbruns);
-            
-            unsigned char buf[4096];
-            off_t remaining = st.st_size;
-            
-            while (remaining > 0) {
-                size_t to_read = remaining > (int)sizeof(buf) ? (int)sizeof(buf) : remaining;
-                ssize_t nb = read(te_fd, buf, to_read);
-                if (nb <= 0) {
-                    if (nb < 0) perror("read times-exitcodes");
-                    close(te_fd);
-                    return -1;
-                }
-                appendn(reply, (char*)buf, nb);
-                remaining -= nb;
-            }
-            
-            close(te_fd);
+        case 'r':
+        case 'R':
+            set_str(RUN_DIRECTORY, optarg);
             break;
-        }
-
-        case OP_STDOUT:
-        case OP_STDERR: {
-            uint64_t taskid;
-            if (read64(req_fd, &taskid) < 0) {
-                free_buf(reply);
-                return -1;
-            }
-            int idx = find_task_index(tasks, taskid);
-            if (idx < 0) {
-                write16(reply, ANS_ERROR);
-                write16(reply, ERR_NOT_FOUND);
-                break;
-            }
-
-            char path[PATH_MAX];
-            snprintf(path, PATH_MAX, "%s/%ld/%s", 
-                     tasks_path->data, taskid, 
-                     opcode == OP_STDOUT ? "stdout" : "stderr");
-
-            int fd = open(path, O_RDONLY);
-            if (fd < 0) {
-                write16(reply, ANS_ERROR);
-                write16(reply, ERR_NOT_RUN);
-                break;
-            }
-
-            buffer_t *output = init_buf();
-            char buf[1024];
-            int n;
-            while ((n = read(fd, buf, sizeof(buf))) > 0) {
-                appendn(output, buf, n);
-            }
-            close(fd);
-
-            write16(reply, ANS_OK);
-            write32(reply, (uint32_t)output->length);
-            appendn(reply, output->data, output->length);
-
-            free_buf(output);
+        case 'p':
+        case 'P':
+            set_str(RUN_DIRECTORY, optarg);
             break;
-        }
-
-        case OP_TERMINATE: {
-            write16(reply, ANS_OK);
-            stop_requested = 1;
-            break;
-        }
 
         default:
-            fprintf(stderr, "Unknown opcode: 0x%04x\n", opcode);
-            return -1;
-    }
-    
-    write_atomic_chunks(rep_fd, reply->data, reply->length);
-    free_buf(reply);
-    exit(0);
-}
-
-/* Instantiating RUN_DIRECTORY with default directory */
-void change_rundir(int argc, char *argv[]){
-    if(argc == 3 && !strcmp(argv[1],"-r")){
-        /* copy safely into fixed-size RUN_DIRECTORY */
-        snprintf(RUN_DIRECTORY, PATH_MAX, "%s", argv[2]);
-    }else {
-        snprintf(RUN_DIRECTORY, PATH_MAX,"/tmp/%s/erraid",  getenv("USER"));
-    }
-}
-
-int main(int argc, char *argv[]) {
-    if( argc > 3 ) {
-        printf("Pass at most two argument: ./erraid -[option] [parameter]\n");
-        exit(0);
+            fprintf(stderr,
+                "Usage: erraid [-F] [-R RUN_DIR] [-P PIPES_DIR]\n");
+            exit(1);
+        }
     }
 
-    change_rundir(argc,argv);
     /* Creates run directory if it doesn't exist */
-    if (mkdir(RUN_DIRECTORY, 0700) != 0 && errno != EEXIST) {
+    if (mkdir(RUN_DIRECTORY->data, 0700) != 0 && errno != EEXIST) {
         perror("mkdir RUN_DIRECTORY");
         return -1;
     }
 
-
     /*Double fork() keeping the grand-child, exists in a new session id*/
-
-    pid_t child_pid = fork(); 
-    assert(child_pid != -1);
-    if (child_pid > 0) _exit(EXIT_SUCCESS); 
-
-    setsid();
-    child_pid = fork(); 
-    assert(child_pid != -1);
-    if (child_pid > 0 ) exit(EXIT_SUCCESS); 
-    puts("");
+    if (!foreground) {
+        pid_t child_pid = fork(); 
+        assert(child_pid != -1);
+        if (child_pid > 0) _exit(EXIT_SUCCESS); 
+        setsid();
+        child_pid = fork(); 
+        assert(child_pid != -1);
+        if (child_pid > 0 ) exit(EXIT_SUCCESS); 
+    }
     
     /* install signal handlers to request graceful shutdown */
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handle_stop;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
     
+    puts("");
     /* ~~~~~~~~ DO NOT CHANGE THE ABOVE ~~~~~~~~ */
 
     task_array_t *task_array = NULL;
     string_t *tasks_path = NULL;
     int ret = 0;
     int task_count = 0;
+        /* Request and Reply pipes */
+    string_t *req_pipe_path = init_str();
+    string_t *rep_pipe_path = init_str();
     
     task_array = malloc(sizeof(task_array_t));
     if (!task_array) goto cleanup;
 
-    tasks_path = new_str(RUN_DIRECTORY);
+    tasks_path = new_str(RUN_DIRECTORY->data);
     append(tasks_path, "/tasks");
+    printf("Task path: %s\n", tasks_path->data);
 
     /* creates tasks directory if non existent*/
     if (mkdir(tasks_path->data, 0700) != 0 && errno != EEXIST) {
         perror("mkdir tasks");
         goto cleanup;
     }
+
+    if (create_pipes(req_pipe_path,rep_pipe_path) != 0) {
+        perror("Failed to create pipes");
+        return 1;
+    }
+    printf("Pipe path: %s\n", rep_pipe_path->data);
+    // TODO: maybe not non_block?
+    int req_fd = open(req_pipe_path->data, O_RDWR | O_NONBLOCK);
 
     task_count = count_dir_size(tasks_path->data, 1);
     task_array->length = task_count;
@@ -560,15 +402,6 @@ int main(int argc, char *argv[]) {
 
     /* ============================================== */
     /* Main loop: exit when a stop signal is received */
-    char req_pipe_path[PATH_MAX+27];
-    char rep_pipe_path[PATH_MAX+25];
-
-    if (create_pipes(req_pipe_path,rep_pipe_path) != 0) {
-        fprintf(stderr, "Failed to create pipes\n");
-        perror("");
-        return 1;
-    }
-    int req_fd = open(req_pipe_path, O_RDWR | O_NONBLOCK);
     
     int status;
     
@@ -587,8 +420,9 @@ int main(int argc, char *argv[]) {
             break;
         }
         if (status > 0) { // check tubes
-            int rep_fd = open(rep_pipe_path, O_WRONLY);
-            int handle_status = handle_request(req_fd, rep_fd, task_array, tasks_path);
+            puts("Checking tubes");
+            int rep_fd = open(rep_pipe_path->data, O_WRONLY);
+            int handle_status = handle_request(req_fd, rep_fd, task_array, tasks_path, &stop_requested);
             close(rep_fd);
             
             if(handle_status < 0){
@@ -598,6 +432,10 @@ int main(int argc, char *argv[]) {
     }
 }
     cleanup:
+        free_str(RUN_DIRECTORY);
+        free_str(PIPES_DIRECTORY);
+        free_str(rep_pipe_path);
+        free_str(req_pipe_path);
         if (task_array) {
             free_task_arr(task_array);
             free(task_array);

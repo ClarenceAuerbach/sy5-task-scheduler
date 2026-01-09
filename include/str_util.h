@@ -59,4 +59,7 @@ void trunc_str_to(string_t *str, size_t n);
 // Removes bytes such that the length of the buffer is n
 void trunc_buf_to(buffer_t *buf, size_t n);
 
+// Replaces the string in str with s
+void set_str(string_t *str, char *s);
+
 #endif

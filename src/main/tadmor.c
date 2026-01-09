@@ -27,7 +27,6 @@ int handle_list(int req_fd, int rep_fd) {
         return -1;
     }
     free_buf(msg);
-
     // Read response
     uint16_t anstype;
     if (read16(rep_fd, &anstype) != 0) {
@@ -332,11 +331,6 @@ int handle_pipe_dir(int *req_fd, int *rep_fd, char * path){
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) {
-        fprintf(stderr, "Usage: tadmor [-c|-l|-r|-x|-o|-e|-s|-q] ...\n");
-        return 1;
-    }
-
     int opt;
     int ret = 0;
     int req_fd = -1;
@@ -344,7 +338,7 @@ int main(int argc, char **argv) {
 
     /* Check for -p option */
     for( int i = 0; i<argc ; i++){
-        if (!strcmp(argv[i], "-p")) {
+        if (!strcmp(argv[i], "-P")) {
             ret = handle_pipe_dir(&req_fd, &rep_fd, argv[i+1]);
             if (ret != 0) {
                 return ret;
@@ -369,10 +363,8 @@ int main(int argc, char **argv) {
         perror("fcntl F_SETFL");
         goto mainend;
     }
-    
 
     while ((opt = getopt(argc, argv, "lqr:x:o:e:p:")) != -1) {
-        
         switch (opt) {
         case 'l':
             ret = handle_list(req_fd, rep_fd);
