@@ -195,6 +195,8 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
                 return -1;
             }
             write_atomic_chunks(rep_fd, reply->data, reply->length);
+            close(rep_fd);
+            free_buf(reply);
             return 1;
         }
 
@@ -209,6 +211,7 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
         return -1;
     }
     write_atomic_chunks(rep_fd, reply->data, reply->length);
+    close(rep_fd);
     free_buf(reply);
     return 0;
 }

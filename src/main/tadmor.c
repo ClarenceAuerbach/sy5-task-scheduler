@@ -403,7 +403,9 @@ int main(int argc, char **argv) {
             ret = handle_output(req_fd, rep_pipe_path, taskid, 0);
             break;
         }
-        case 'p': {
+        case 'P': {
+            if (!optarg)  goto error;
+            set_str(PIPES_DIRECTORY, optarg);
             break;
         }
 

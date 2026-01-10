@@ -339,6 +339,8 @@ int main(int argc, char *argv[]) {
         case 'r':
         case 'R':
             set_str(RUN_DIRECTORY, optarg);
+            set_str(PIPES_DIRECTORY, optarg);
+            append(PIPES_DIRECTORY, "/pipes");
             break;
         case 'p':
         case 'P':
