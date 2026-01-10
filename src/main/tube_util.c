@@ -42,7 +42,7 @@ int write64(buffer_t *msg, uint64_t val) {
 int read16(int fd, uint16_t *val) {
     unsigned char buf[2];
     size_t total = 0;
-    
+
     while (total < 2) {
         ssize_t r = read(fd, buf + total, 2 - total);
         if (r < 0) {
@@ -195,54 +195,6 @@ int write_arguments(buffer_t *msg, int argc, char **argv) {
         appendn(msg, argv[i], len);
     }
     
-    return 0;
-}
-
-int open_pipes(const char *pipes_dir, int *req_fd, int *rep_fd) {
-    string_t *path = new_str("");
-    if (!path) return -1;
-    
-    if (!pipes_dir) {
-        char *user = getenv("USER");
-        if (!user) {
-            fprintf(stderr, "USER environment variable not set\n");
-            free_str(path);
-            return -1;
-        }
-        append(path, "/tmp/");
-        append(path, user);
-        append(path, "/erraid/pipes");
-    } else {
-        append(path, pipes_dir);
-        append(path, "/pipes");
-    }
-    
-    size_t base_len = path->length;
-    
-    append(path, "/erraid-request-pipe");
-
-    *req_fd = open(path->data, O_WRONLY );
-
-    if (*req_fd < 0) {
-        perror("open request pipe");
-        free_str(path);
-        return -1;
-    }
-    
-    
-    trunc_str_to(path, base_len);
-    append(path, "/erraid-reply-pipe");
-
-    *rep_fd = open(path->data, O_RDONLY | O_NONBLOCK);
-
-    if (*rep_fd < 0) {
-        perror("open reply pipe");
-        close(*req_fd);
-        free_str(path);
-        return -1;
-    }
-    
-    free_str(path);
     return 0;
 }
 

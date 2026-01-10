@@ -28,6 +28,7 @@ string_t *PIPES_DIRECTORY;
 
 static volatile sig_atomic_t stop_requested = 0;
 
+/* Handles SIGTERM, SIGINT */
 static void handle_stop(int sig) {
     (void)sig;
     stop_requested = 1;
@@ -45,6 +46,21 @@ void reap_zombies() {
             return;
         }
     }
+}
+
+/* Waits until timeout or child process message
+ */
+int tube_timeout(int tube_fd, int timeout) {
+    if (timeout < 0) timeout = 0;
+
+    struct pollfd p = {
+        .fd = tube_fd,
+        .events = POLLIN
+    };
+    int ret = poll(&p, 1, timeout);
+    sleep(10);
+    printf("pollfd revents: %d\n", p.revents);
+    return ret;
 }
 
 /* Execute a simple command of type SI */
@@ -97,6 +113,7 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
 
 int exec_command(command_t *com, int fd_out, int fd_err); // Mutually recursive
 
+/* Execute a simple command of type SQ (calls exec_command) */
 int exec_sequential_command(command_t *com, int fd_out, int fd_err){
     int ret = 0;
     for (unsigned int i=0; i < com->nbcmds; i++){
@@ -105,7 +122,7 @@ int exec_sequential_command(command_t *com, int fd_out, int fd_err){
     return ret;
 }
 
-/* TODO Execute commands of every type correctly */
+/* Calls the right exec_type_command */
 int exec_command(command_t *com, int fd_out, int fd_err){
     int ret = 0;
     if (!strcmp(com->type, "SQ")){
@@ -122,6 +139,7 @@ int exec_command(command_t *com, int fd_out, int fd_err){
     return ret;
 }
 
+/* Calls exec_command and writes time exit code */
 void handle_command(command_t *com, int fd_out, int fd_err, int fd_exc){
     int pid = fork();
     if (pid > 0) return;
@@ -144,26 +162,11 @@ void handle_command(command_t *com, int fd_out, int fd_err, int fd_exc){
     _exit(0);
 }
 
-/* Waits for a tube with a timeout
- * ret > 0: tube readable
- * ret = 0: timeout
- * ret < 0: error or EINTR
+/* Runs  returns -1 on error,
+ * sets timeout to time until next task execution in ms, or -1 if no tasks remain
  */
-int tube_timeout(int tube_fd, int timeout) {
-    if (timeout < 0) timeout = 0;
-
-    struct pollfd p = {
-        .fd = tube_fd,
-        .events = POLLIN
-    };
-    return poll(&p, 1, timeout);
-}
-
-/* Runs every due task and return the time until next scheduled execution
- * -1 on error
- */
-int run(char *tasks_path, task_array_t *task_array){
-    int ret = -1;
+int run(char *tasks_path, task_array_t *task_array, int *timeout){
+    int ret = 0; 
     char *stdout_path = NULL;
     char *stderr_path = NULL;
     char *times_exitc_path = NULL;
@@ -188,7 +191,7 @@ int run(char *tasks_path, task_array_t *task_array){
     if (!times_exitc_path) goto cleanup;
 
     // DEBUG 
-    print_task(*task_array->tasks[0]);
+    // print_task(*task_array->tasks[0]);
 
     while(1) {
         /*Look for soonest task to be executed*/ 
@@ -210,7 +213,7 @@ int run(char *tasks_path, task_array_t *task_array){
         now = time(NULL);
         if (min_timing > now) {
             // DEBUG 
-            //printf("\033[32mBreaking out of execution loop\033[0m\n");
+            // printf("\033[32mBreaking out of execution loop\033[0m\n");
             break; // Soonest task is still in the future.
         }
 
@@ -250,8 +253,8 @@ int run(char *tasks_path, task_array_t *task_array){
     // printf("Min timing: %s", ctime(&min_timing));
 
 end:
-    if (!found_task) ret = 604800; // One week in seconds, somewhat arbitrary value
-    else ret = min_timing-now;
+    if (found_task) *timeout = (min_timing-now)*1000;
+    else *timeout = -1;
 cleanup:
     if (fd_out >= 0) close(fd_out);
     if (fd_err >= 0) close(fd_err);
@@ -286,6 +289,38 @@ int create_pipes(string_t *request_pipe_path, string_t *reply_pipe_path) {
     return 0;
 }
 
+/* We create task_array */
+int init_task_array(task_array_t **task_arrayp, string_t *tasks_path) {
+    *task_arrayp = malloc(sizeof(task_array_t));
+    if (!(*task_arrayp)) return -1;
+    task_array_t *task_array = (*task_arrayp);
+    
+    int task_count = count_dir_size(tasks_path->data, 1);
+    task_array->length = task_count;
+    /* If there are no tasks we skip extraction*/
+    if (task_count > 0) {
+        task_array->tasks = malloc(task_count * sizeof(task_t *));
+        if (!task_array->tasks) return -1;
+
+        if (extract_all(task_array, tasks_path->data)) {
+            perror("Extract_all failed");
+            return -1;
+        }
+
+        task_array->next_times = malloc(task_count * sizeof(time_t));
+        if (!task_array->next_times) return -1;
+
+        time_t now = time(NULL);
+        for(int i = 0; i < task_count; i++) {
+            task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
+        }
+    } else {
+        task_array->tasks = NULL;
+        task_array->next_times = NULL;
+    }
+    return 0;
+}
+
 int main(int argc, char *argv[]) {
     int foreground = 0;
     int opt;
@@ -309,7 +344,7 @@ int main(int argc, char *argv[]) {
             break;
         case 'p':
         case 'P':
-            set_str(RUN_DIRECTORY, optarg);
+            set_str(PIPES_DIRECTORY, optarg);
             break;
 
         default:
@@ -344,22 +379,22 @@ int main(int argc, char *argv[]) {
     sigaction(SIGTERM, &sa, NULL);
     
     puts("");
-    /* ~~~~~~~~ DO NOT CHANGE THE ABOVE ~~~~~~~~ */
+    /* ============================================== */
+    /* ========== DO NOT CHANGE THE ABOVE =========== */
 
     task_array_t *task_array = NULL;
-    string_t *tasks_path = NULL;
+    string_t *tasks_path = init_str();
     int ret = 0;
-    int task_count = 0;
-        /* Request and Reply pipes */
+    int timeout =0;
+    /* Pipe for parent<-child communication */
+    int pipes_fd[2] = {-1, -1};
+    /* Pipes for tadmor<->erraid communication */
     string_t *req_pipe_path = init_str();
     string_t *rep_pipe_path = init_str();
-    
-    task_array = malloc(sizeof(task_array_t));
-    if (!task_array) goto cleanup;
 
-    tasks_path = new_str(RUN_DIRECTORY->data);
+
+    append(tasks_path,RUN_DIRECTORY->data);
     append(tasks_path, "/tasks");
-    printf("Task path: %s\n", tasks_path->data);
 
     /* creates tasks directory if non existent*/
     if (mkdir(tasks_path->data, 0700) != 0 && errno != EEXIST) {
@@ -371,71 +406,83 @@ int main(int argc, char *argv[]) {
         perror("Failed to create pipes");
         return 1;
     }
-    printf("Pipe path: %s\n", rep_pipe_path->data);
-    // TODO: maybe not non_block?
-    int req_fd = open(req_pipe_path->data, O_RDWR | O_NONBLOCK);
+    // DEBUG
+    // printf("Pipe path: %s\n", rep_pipe_path->data);
 
-    task_count = count_dir_size(tasks_path->data, 1);
-    task_array->length = task_count;
-    
-    /* If there are no tasks we skip extraction */
-    if (task_count > 0) {
-        task_array->tasks = malloc(task_count * sizeof(task_t *));
-        if (!task_array->tasks) goto cleanup;
-
-        if (extract_all(task_array, tasks_path->data)) {
-            perror("Extract_all failed");
-            goto cleanup;
-        }
-
-        task_array->next_times = malloc(task_count * sizeof(time_t));
-        if (!task_array->next_times) goto cleanup;
-
-        time_t now = time(NULL);
-        for(int i = 0; i < task_count; i++) {
-            task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
-        }
-    } else {
-        task_array->tasks = NULL;
-        task_array->next_times = NULL;
+    if (init_task_array(&task_array, tasks_path) != 0) {
+        perror("init_task_array failed");
+        goto cleanup;
     }
 
+    if (pipe(pipes_fd) != 0) {
+        perror("Failed to open pipes");
+        goto cleanup;
+    }
+
+    /* Creates child process to check handle requests*/
+    if (fork() == 0){
+        close(pipes_fd[0]);
+        init_req_handler(req_pipe_path, rep_pipe_path, task_array, tasks_path, pipes_fd[1]);
+    }
+    close(pipes_fd[1]);
+
+    int status;
     /* ============================================== */
     /* Main loop: exit when a stop signal is received */
     
-    int status;
-    
     while(!stop_requested) {
-        ret = run(tasks_path->data, task_array);
+        ret = run(tasks_path->data, task_array, &timeout);
         if(ret < 0){
             perror("An Error occured during run()");
             continue;
         }
         
-        printf("Time until next task execution: %ds\n", ret);
+        printf("Time until next task execution: %ds\n", timeout/1000);
         
-        status = tube_timeout(req_fd, ret * 1000);
+        status = tube_timeout(pipes_fd[0], timeout);
         if (status < 0) {
             perror("Error with poll");
             break;
         }
         if (status > 0) { // check tubes
-            puts("Checking tubes");
-            int rep_fd = open(rep_pipe_path->data, O_WRONLY);
-            int handle_status = handle_request(req_fd, rep_fd, task_array, tasks_path, &stop_requested);
-            close(rep_fd);
-            
-            if(handle_status < 0){
-                perror("handle_request failed");
+            puts("Checking erraid_req tube");
+            char buff;
+            read(pipes_fd[0], &buff, 1);
+            printf("Received command: %c\n", buff);
+            switch(buff){
+                case 'q':
+                    stop_requested = 1;
                 break;
-            }
+                case 'c':
+                    // reload tasks
+
+                    free_task_arr(task_array);
+                    int task_count = count_dir_size(tasks_path->data, 1);
+                    task_array->length = task_count;  
+                    if (task_count > 0) {
+                        task_array->tasks = malloc(task_count * sizeof(task_t *));
+                        if (!task_array->tasks) goto cleanup;  
+                    }
+                    if (extract_all(task_array, tasks_path->data)) {
+                        perror("Extract_all failed");
+                        goto cleanup;
+                    }
+                    time_t now = time(NULL);
+                    for(int i = 0; i < task_count; i++) {
+                        task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
+                    }
+                break;
+                default: break;               
+            };
         }
-}
+    }
+    /* ============================================== */
     cleanup:
         free_str(RUN_DIRECTORY);
         free_str(PIPES_DIRECTORY);
         free_str(rep_pipe_path);
         free_str(req_pipe_path);
+        if( pipes_fd[0] >= 0) close(pipes_fd[0]);
         if (task_array) {
             free_task_arr(task_array);
             free(task_array);

@@ -12,6 +12,10 @@
 #include "tube_util.h"
 #include <bits/getopt_core.h>
 
+
+string_t *PIPES_DIRECTORY;
+
+
 /* Send a LIST request and display response */
 int handle_list(int req_fd, int rep_fd) {
     buffer_t *msg = init_buf();
@@ -323,47 +327,30 @@ int handle_terminate(int req_fd, int rep_fd) {
     return 0;
 }
 
-int handle_pipe_dir(int *req_fd, int *rep_fd, char * path){
-    if (open_pipes(path, req_fd, rep_fd) != 0) {
-        return 1;
-    }
-    return 0;
-}
-
 int main(int argc, char **argv) {
-    int opt;
-    int ret = 0;
-    int req_fd = -1;
-    int rep_fd = -1;
+    
 
-    /* Check for -p option */
+    PIPES_DIRECTORY = new_str("/tmp/");
+    append(PIPES_DIRECTORY, getenv("USER"));
+    append(PIPES_DIRECTORY, "/erraid/pipes");
+    /* Check for -p option, before so it doesn't affect getopt  */
     for( int i = 0; i<argc ; i++){
         if (!strcmp(argv[i], "-P")) {
-            ret = handle_pipe_dir(&req_fd, &rep_fd, argv[i+1]);
-            if (ret != 0) {
-                return ret;
-            }
-            break;    
+            set_str(PIPES_DIRECTORY, argv[i+1]);
         }
     }
 
-    if (req_fd == -1 || rep_fd == -1) {
-        int ret = open_pipes(NULL, &req_fd, &rep_fd);
-        if(ret) return -1;
-    }
+    string_t *req_pipe_path = new_str(PIPES_DIRECTORY->data);
+    append(req_pipe_path, "/erraid-request-pipe");
+    string_t *rep_pipe_path = new_str(PIPES_DIRECTORY->data);
+    append(rep_pipe_path, "/erraid-reply-pipe");
 
-    /* Blocks response pipe*/
-    int flags = fcntl(rep_fd, F_GETFL);
-    if (flags == -1) {
-        perror("fcntl F_GETFL");
-        goto mainend;
-    }
+    int req_fd = open(req_pipe_path->data, O_WRONLY);
+    int rep_fd = open(rep_pipe_path->data, O_RDONLY | O_NONBLOCK);
+    fcntl(req_fd, F_SETFL, 0); // remove O_NONBLOCK
 
-    if (fcntl(rep_fd, F_SETFL, flags & ~O_NONBLOCK) == -1) {
-        perror("fcntl F_SETFL");
-        goto mainend;
-    }
-
+    int opt;
+    int ret = 0;
     while ((opt = getopt(argc, argv, "lqr:x:o:e:p:")) != -1) {
         switch (opt) {
         case 'l':
@@ -400,18 +387,12 @@ int main(int argc, char **argv) {
         case 'p': {
             break;
         }
-
         default:
             fprintf(stderr,
                 "Usage: tadmor [-p PATH] [-l|-q|-r TASKID|-x TASKID|-o TASKID|-e TASKID]\n");
             return 1;
         }
     }
-    
-mainend:
-
-    close(req_fd);
-    close(rep_fd);
 
     return ret;
 }

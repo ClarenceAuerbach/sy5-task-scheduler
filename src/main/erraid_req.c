@@ -45,11 +45,9 @@ void command_to_string(command_t *cmd, string_t *result) {
     }
 }
 
-int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_path, volatile sig_atomic_t *stop_requested) {
-    if (fork()) return 0;
+int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, string_t *tasks_path, int status_fd) {
     uint16_t opcode;
     buffer_t *reply = init_buf();
-
     int r = read16(req_fd, &opcode);
     if (r == -1) {
         perror("Reading opcode");
@@ -77,7 +75,7 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
                 
                 string_t *cmdline = new_str("");
                 command_to_string(tasks->tasks[i]->command, cmdline);
-                
+
                 write32(reply, (uint32_t)cmdline->length);
                 
                 appendn(reply, cmdline->data, cmdline->length);
@@ -188,7 +186,8 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
 
         case OP_TERMINATE: {
             write16(reply, ANS_OK);
-            *stop_requested = 1;
+            char buff = 'q';
+            write(status_fd, &buff ,1);
             break;
         }
 
@@ -196,8 +195,44 @@ int handle_request(int req_fd, int rep_fd, task_array_t *tasks, string_t *tasks_
             fprintf(stderr, "Unknown opcode: 0x%04x\n", opcode);
             return -1;
     }
-    
+    int rep_fd = open(rep_pipe_path->data, O_WRONLY);
+    if (rep_fd < 0) {
+        perror("open reply pipe");
+        free_buf(reply);
+        return -1;
+    }
     write_atomic_chunks(rep_fd, reply->data, reply->length);
     free_buf(reply);
     exit(0);
 }
+
+int init_req_handler(string_t *req_pipe_path, string_t *rep_pipe_path, task_array_t *tasks, string_t *tasks_path, int status_fd){
+    
+    int req_fd = open(req_pipe_path->data, O_RDONLY);    
+    if (req_fd < 0) {
+        perror("open request pipe");
+        return -1;
+    }
+    while(1){
+        int r = handle_request(req_fd, rep_pipe_path, tasks, tasks_path, status_fd);
+        if (r < 0) {
+            perror("Handle_request");
+            char buff = 'q';
+            write(status_fd, &buff ,1);
+            printf("Sent: %c\n", buff);
+            close(req_fd);
+            close(status_fd);
+            exit(r);
+        }
+    }
+
+    char buff = 'q';
+    write(status_fd, &buff ,1);
+
+    close(req_fd);
+    close(status_fd);
+    
+    
+    exit(0);
+}
+
