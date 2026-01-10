@@ -71,10 +71,7 @@ void print_task(task_t task){
     printBits(2, &(task.timings.hours));
     printBits(1, &(task.timings.daysofweek));
     printf("Command : \n" );
-    char type[3];
-    memcpy(type, &(task.command->type), 2);
-    type[2] = '\0';
-    printf("  type : %s\n", type);
+    printf("  type : %s\n", task.command->type);
     printf("  nbcmds : %d \n", task.command->nbcmds);
     printf("  argv :\n");
 

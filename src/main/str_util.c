@@ -139,19 +139,20 @@ void trunc_buf_by(buffer_t *buf, size_t n) {
 
 // Removes characters such that the length of the string is n
 void trunc_str_to(string_t *str, size_t n) {
-    memset(str->data+n, 0, str->capacity-n);
+    if (n > str->length) n = str->length;
+    memset(str->data+n, '\0', str->capacity-n);
     str->length = n;
 }
 
 // Removes bytes such that the length of the buffer is n
 void trunc_buf_to(buffer_t *buf, size_t n) {
-    uint8_t *end_of_data = buf->data + n;
-    memset(end_of_data, '\0', n);
-    buf->length -= n;
+    if (n > buf->length) n = buf->length;
+    memset(buf->data + n, '\0', buf->length - n);
+    buf->length = n;
 }
 
 // Replaces the string in str with s
-void set_str(string_t *str, char *s) {
+int set_str(string_t *str, char *s) {
     trunc_str_to(str, 0);
-    append(str, s);
+    return append(str, s);
 }

@@ -188,7 +188,7 @@ int run(char *tasks_path, task_array_t *task_array){
     if (!times_exitc_path) goto cleanup;
 
     // DEBUG 
-    // print_task(*task_array->tasks[0]);
+    print_task(*task_array->tasks[0]);
 
     while(1) {
         /*Look for soonest task to be executed*/ 
@@ -429,7 +429,7 @@ int main(int argc, char *argv[]) {
                 perror("handle_request failed");
                 break;
             }
-    }
+        }
 }
     cleanup:
         free_str(RUN_DIRECTORY);
