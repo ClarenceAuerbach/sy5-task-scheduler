@@ -17,7 +17,7 @@ string_t *PIPES_DIRECTORY;
 
 
 /* Send a LIST request and display response */
-int handle_list(int req_fd, int rep_fd) {
+int handle_list(int req_fd, string_t *rep_pipe_path) {
     buffer_t *msg = init_buf();
     if (!msg) return -1;
 
@@ -32,6 +32,8 @@ int handle_list(int req_fd, int rep_fd) {
     }
     free_buf(msg);
     // Read response
+
+    int rep_fd = open(rep_pipe_path->data, O_RDONLY);
     uint16_t anstype;
     if (read16(rep_fd, &anstype) != 0) {
         fprintf(stderr, "Failed to read answer type\n");
@@ -111,7 +113,7 @@ int handle_list(int req_fd, int rep_fd) {
 }
 
 /* Send TIMES_EXITCODES request and display response */
-int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
+int handle_times_exitcodes(int req_fd, string_t *rep_pipe_path, uint64_t taskid) {
     buffer_t *msg = init_buf();
     if (!msg) return -1;
     
@@ -132,6 +134,9 @@ int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
     free_buf(msg);
     
     // Read response
+
+    int rep_fd = open(rep_pipe_path->data, O_RDONLY);
+
     uint16_t anstype;
     if (read16(rep_fd, &anstype) != 0) return -1;
     
@@ -203,7 +208,7 @@ int handle_times_exitcodes(int req_fd, int rep_fd, uint64_t taskid) {
     return 0;
 }
 /* Send STDOUT or STDERR request and display response */
-int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
+int handle_output(int req_fd, string_t *rep_pipe_path, uint64_t taskid, int is_stdout) {
     buffer_t *msg = init_buf();
     
     if (write16(msg, is_stdout ? OP_STDOUT : OP_STDERR) != 0) {
@@ -224,6 +229,9 @@ int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
     
 
     // Read response
+
+    int rep_fd = open(rep_pipe_path->data, O_RDONLY);
+
     uint16_t anstype;
     if (read16(rep_fd, &anstype) != 0) return -1;
     
@@ -268,7 +276,7 @@ int handle_output(int req_fd, int rep_fd, uint64_t taskid, int is_stdout) {
 }
 
 /* Send REMOVE request */
-int handle_remove(int req_fd, int rep_fd, uint64_t taskid) {
+int handle_remove(int req_fd, string_t *rep_pipe_path, uint64_t taskid) {
     buffer_t *msg = init_buf();
     if (!msg) return -1;
     
@@ -289,6 +297,10 @@ int handle_remove(int req_fd, int rep_fd, uint64_t taskid) {
     free_buf(msg);
     
     // Read response
+
+
+    int rep_fd = open(rep_pipe_path->data, O_RDONLY);
+
     uint16_t anstype;
     if (read16(rep_fd, &anstype) != 0) return -1;
     
@@ -305,7 +317,7 @@ int handle_remove(int req_fd, int rep_fd, uint64_t taskid) {
 }
 
 /* Send TERMINATE request */
-int handle_terminate(int req_fd, int rep_fd) {
+int handle_terminate(int req_fd, string_t *rep_pipe_path) {
     buffer_t *msg = init_buf();
     if (!msg) return -1;
     
@@ -321,7 +333,10 @@ int handle_terminate(int req_fd, int rep_fd) {
     free_buf(msg);
 
     // Read response
+    int rep_fd = open(rep_pipe_path->data, O_RDONLY);
+
     uint16_t anstype;
+    
     if (read16(rep_fd, &anstype) != 0) return -1;
     
     return 0;
@@ -346,53 +361,63 @@ int main(int argc, char **argv) {
     append(rep_pipe_path, "/erraid-reply-pipe");
 
     int req_fd = open(req_pipe_path->data, O_WRONLY);
-    int rep_fd = open(rep_pipe_path->data, O_RDONLY | O_NONBLOCK);
-    fcntl(req_fd, F_SETFL, 0); // remove O_NONBLOCK
-
+    
     int opt;
     int ret = 0;
-    while ((opt = getopt(argc, argv, "lqr:x:o:e:p:")) != -1) {
+    opterr = 0; 
+    while ((opt = getopt(argc, argv, ":lqr:x:o:e:p:")) != -1) {
         switch (opt) {
-        case 'l':
-            ret = handle_list(req_fd, rep_fd);
+        case 'l':{
+            ret = handle_list(req_fd, rep_pipe_path);
             break;
-
-        case 'q':
-            ret = handle_terminate(req_fd, rep_fd);
+        }
+        case 'q': {
+            ret = handle_terminate(req_fd, rep_pipe_path);
             break;
+        }
 
         case 'r': {
+            if (!optarg)  goto error;
             uint64_t taskid = strtoull(optarg, NULL, 10);
-            ret = handle_remove(req_fd, rep_fd, taskid);
+            ret = handle_remove(req_fd, rep_pipe_path, taskid);
             break;
         }
 
         case 'x': {
+            if (!optarg)  goto error;
             uint64_t taskid = strtoull(optarg, NULL, 10);
-            ret = handle_times_exitcodes(req_fd, rep_fd, taskid);
+            ret = handle_times_exitcodes(req_fd, rep_pipe_path, taskid);
             break;
         }
 
         case 'o': {
+            if (!optarg)  goto error;
             uint64_t taskid = strtoull(optarg, NULL, 10);
-            ret = handle_output(req_fd, rep_fd, taskid, 1);
+            ret = handle_output(req_fd, rep_pipe_path, taskid, 1);
             break;
         }
 
         case 'e': {
+            if (!optarg)  goto error;
             uint64_t taskid = strtoull(optarg, NULL, 10);
-            ret = handle_output(req_fd, rep_fd, taskid, 0);
+            ret = handle_output(req_fd, rep_pipe_path, taskid, 0);
             break;
         }
         case 'p': {
             break;
         }
+
+        case ':':
+        case '?':
         default:
-            fprintf(stderr,
-                "Usage: tadmor [-p PATH] [-l|-q|-r TASKID|-x TASKID|-o TASKID|-e TASKID]\n");
-            return 1;
+            goto error;
         }
     }
-
     return ret;
+
+error :
+    fprintf(stderr, "Error: Unknown option '-%c'\n", optopt);
+    fprintf(stderr,
+        "Usage: tadmor [-p PATH] [-l|-q|-r TASKID|-x TASKID|-o TASKID|-e TASKID]\n");
+    return 1;
 }

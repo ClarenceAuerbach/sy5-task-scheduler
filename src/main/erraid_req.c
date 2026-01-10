@@ -188,7 +188,14 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
             write16(reply, ANS_OK);
             char buff = 'q';
             write(status_fd, &buff ,1);
-            break;
+            int rep_fd = open(rep_pipe_path->data, O_WRONLY);
+            if (rep_fd < 0) {
+                perror("open reply pipe");
+                free_buf(reply);
+                return -1;
+            }
+            write_atomic_chunks(rep_fd, reply->data, reply->length);
+            return 1;
         }
 
         default:
@@ -203,18 +210,20 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
     }
     write_atomic_chunks(rep_fd, reply->data, reply->length);
     free_buf(reply);
-    exit(0);
+    return 0;
 }
 
 int init_req_handler(string_t *req_pipe_path, string_t *rep_pipe_path, task_array_t *tasks, string_t *tasks_path, int status_fd){
     
-    int req_fd = open(req_pipe_path->data, O_RDONLY);    
+    int req_fd = open(req_pipe_path->data, O_RDWR);
+
     if (req_fd < 0) {
         perror("open request pipe");
         return -1;
     }
-    while(1){
-        int r = handle_request(req_fd, rep_pipe_path, tasks, tasks_path, status_fd);
+    int r = 0;
+    while(r == 0){
+        r = handle_request(req_fd, rep_pipe_path, tasks, tasks_path, status_fd);
         if (r < 0) {
             perror("Handle_request");
             char buff = 'q';

@@ -58,8 +58,6 @@ int tube_timeout(int tube_fd, int timeout) {
         .events = POLLIN
     };
     int ret = poll(&p, 1, timeout);
-    sleep(10);
-    printf("pollfd revents: %d\n", p.revents);
     return ret;
 }
 
@@ -445,10 +443,8 @@ int main(int argc, char *argv[]) {
             break;
         }
         if (status > 0) { // check tubes
-            puts("Checking erraid_req tube");
             char buff;
             read(pipes_fd[0], &buff, 1);
-            printf("Received command: %c\n", buff);
             switch(buff){
                 case 'q':
                     stop_requested = 1;
