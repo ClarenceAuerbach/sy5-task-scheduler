@@ -64,4 +64,5 @@ int remove_task_dir(string_t *task_dir_path);
 
 int create_simple_task(string_t *tasks_path, uint64_t taskid, uint64_t minutes, uint32_t hours, uint8_t days, uint32_t argc, buffer_t * argv);
 
+int create_combine_task(task_array_t * task_array, string_t *tasks_path, uint64_t taskid, uint64_t minutes, uint32_t hours, uint8_t days, uint32_t nb_task, uint64_t * task_ids, uint64_t type);
 #endif

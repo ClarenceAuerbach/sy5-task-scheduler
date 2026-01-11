@@ -60,7 +60,70 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
     // printf("Received opcode: 0x%04x\n", opcode);
     task_array_t *task_array = *task_arrayp;
     switch(opcode) {
-        
+
+        case OP_COMBINE: {
+            uint64_t minutes = 0;
+            uint32_t hours = 0;
+            uint8_t days = 0;
+            uint16_t type = 0;
+            uint32_t nb_task = 0;
+            uint64_t taskid = 0;
+
+            if (read64(req_fd, &minutes) < 0) {
+                free_buf(reply);
+                return -1;
+            }
+            if (read32(req_fd, &hours) < 0) {
+                free_buf(reply);
+                return -1;
+            }
+            if (read(req_fd, &days, 1) < 0) {
+                free_buf(reply);
+                return -1;
+            }
+
+            while ( find_task_index(task_array, taskid) != -1 ){
+                taskid++;
+            }
+
+            read16(req_fd, &type);
+
+            read32(req_fd, &nb_task);
+
+            uint64_t task_ids[nb_task];
+            for(int i =0; i< (int)nb_task; i++){
+                read64(req_fd, (task_ids+i));
+            }
+
+            
+            for(int i =0; i< (int)nb_task; i++){
+                printf( " id recu %ld\n", task_ids[i]);
+            }
+
+            if(create_combine_task(task_array, tasks_path, taskid, minutes, hours, days, nb_task, task_ids, type) != 0) {
+                write16(reply, ANS_ERROR);
+                write16(reply, ERR_CANNOT_CREATE);
+                break;
+            }
+
+            char buff = 'c';
+            write(status_fd, &buff ,1);
+            printf("Updated erraid about task creation\n");
+
+            // Re-initialize task array
+            free_task_arr(task_array);
+            *task_arrayp = NULL;
+            if (init_task_array(task_arrayp, tasks_path) != 0) {
+                perror("Re-initializing task array");
+                free_buf(reply);
+                return -1;
+            }
+            
+            write16(reply, ANS_OK);
+
+            break;
+        }
+
         case OP_CREATE: {
            
             uint64_t minutes = 0;
@@ -80,6 +143,7 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
                 free_buf(reply);
                 return -1;
             }
+            
             while ( find_task_index(task_array, taskid) != -1 ){
                 taskid++;
             }

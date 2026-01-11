@@ -180,7 +180,7 @@ int write_command(buffer_t *msg, command_t *cmd) {
             appendn(msg, cmd->args.argv[i].data, cmd->args.argv[i].length);
         }
         
-    } else if (!strcmp(cmd->type, "SQ")) {
+    } else if (!strcmp(cmd->type, "SQ") || !strcmp(cmd->type, "PL") || !strcmp(cmd->type, "IF")) {
         // TYPE = 'SQ'
         write16(msg, 0x5351);
         
