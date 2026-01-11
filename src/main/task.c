@@ -15,7 +15,7 @@
 /* Command directory to struct command_t, recursive */
 int extract_cmd(command_t *dest_cmd, char *dir_path) {
     DIR *dir = opendir(dir_path);
-    if (dir == NULL) {
+    if (dir == NULL) {  
         perror("cannot open dir : cmd");
         return -1;
     }
@@ -24,9 +24,9 @@ int extract_cmd(command_t *dest_cmd, char *dir_path) {
     int i = 0;
     char path[PATH_MAX];
     while ((entry = readdir(dir))) {
-        if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
+        if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;  
 
-        /* Build a safe path into local buffer instead of mutating dir_path */
+        /* Build a safe path into local buffer instead of mutating dir_path */  
         int n = snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name);
         if (n < 0 || n >= (int)sizeof(path)) {
             /* truncated — skip this entry */
