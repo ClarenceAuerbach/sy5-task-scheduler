@@ -11,6 +11,7 @@
 
 #include "task.h"
 #include "erraid_util.h"
+#include "tube_util.h"
 
 /* Command directory to struct command_t, recursive */
 int extract_cmd(command_t *dest_cmd, char *dir_path) {
@@ -316,3 +317,189 @@ void free_task_arr(task_array_t *task_arr) {
         task_arr->next_times = NULL;
     }
 }
+
+/* We create task_array */
+int init_task_array(task_array_t **task_arrayp, string_t *tasks_path) {
+    *task_arrayp = malloc(sizeof(task_array_t));
+    if (!(*task_arrayp)) return -1;
+    task_array_t *task_array = (*task_arrayp);
+    
+    int task_count = count_dir_size(tasks_path->data, 1);
+    task_array->length = task_count;
+    /* If there are no tasks we skip extraction*/
+    if (task_count > 0) {
+        task_array->tasks = malloc(task_count * sizeof(task_t *));
+        if (!task_array->tasks) return -1;
+
+        if (extract_all(task_array, tasks_path->data)) {
+            perror("Extract_all failed");
+            return -1;
+        }
+
+        task_array->next_times = malloc(task_count * sizeof(time_t));
+        if (!task_array->next_times) return -1;
+
+        time_t now = time(NULL);
+        for(int i = 0; i < task_count; i++) {
+            task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
+        }
+    } else {
+        task_array->tasks = NULL;
+        task_array->next_times = NULL;
+    }
+    return 0;
+}
+
+int remove_task_dir(string_t *task_dir_path) {
+    DIR *dir = opendir(task_dir_path->data);
+    if (!dir) {
+        perror("opendir");
+        return -1;
+    }
+    
+    struct dirent *entry;
+    int ret = 0;
+    
+    while ((entry = readdir(dir)) != NULL) {
+        // Skip "." and ".."
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        
+        string_t *entry_path = new_str(task_dir_path->data);
+        append(entry_path, "/");
+        append(entry_path, entry->d_name);
+        
+        struct stat statbuf;
+        if (stat(entry_path->data, &statbuf) == -1) {
+            perror("stat");
+            free_str(entry_path);
+            ret = -1;
+            continue;
+        }
+        
+        if (S_ISDIR(statbuf.st_mode)) {
+            if (remove_task_dir(entry_path) != 0) {
+                ret = -1;
+            }
+        } else {
+            if (unlink(entry_path->data) != 0) {
+                perror("unlink");
+                ret = -1;
+            }
+        }
+        
+        free_str(entry_path);
+    }
+    
+    closedir(dir);
+    
+    if (rmdir(task_dir_path->data) != 0) {
+        perror("rmdir");
+        return -1;
+    }
+    
+    return ret;
+}
+
+int create_simple_task(string_t *tasks_path, uint64_t taskid, uint64_t minutes, uint32_t hours, uint8_t days, uint32_t argc, buffer_t *argv) {
+    string_t *task_dir_path = new_str(tasks_path->data);
+    
+    char tmp[65];
+    snprintf(tmp, 65, "/%lu", taskid);
+    append(task_dir_path, tmp);
+    
+    if (mkdir(task_dir_path->data, 0700) != 0) {
+        perror("mkdir task dir");
+        free_str(task_dir_path);
+        return -1;
+    }
+    
+    // Create timing file
+    append(task_dir_path, "/timing");
+    int timing_fd = open(task_dir_path->data, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (timing_fd < 0) {
+        perror("open timing file");
+        free_str(task_dir_path);
+        return -1;
+    }
+
+    buffer_t *timing_buf = init_buf();
+    write64(timing_buf, minutes) ;
+    write32(timing_buf, hours) ;
+    appendn(timing_buf, &days, 1) ;
+
+    if (write(timing_fd, timing_buf->data, timing_buf->length) < 0) {
+        perror("write timing file");
+        free_buf(timing_buf);
+        free_str(task_dir_path);
+        close(timing_fd);
+        return -1;
+    }
+    free_buf(timing_buf);
+    close(timing_fd);
+    
+    // Create cmd directory
+
+    trunc_str_by(task_dir_path, 7); // remove /timing
+    append(task_dir_path, "/cmd");
+    if (mkdir(task_dir_path->data, 0700) != 0) {
+        perror("mkdir cmd dir");
+        free_str(task_dir_path);
+        return -1;
+    }
+    
+    // Create type file
+    
+    append(task_dir_path,  "/type");
+    int type_fd = open(task_dir_path->data, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (type_fd < 0) {
+        perror("open type file");
+        free_str(task_dir_path);
+        return -1;
+    }
+    
+    if (write(type_fd, "SI", 2) != 2) {
+        perror("write type file");
+        close(type_fd);
+        free_str(task_dir_path);
+        return -1;
+    }
+    
+    close(type_fd);
+    
+    // Create argv file
+
+    trunc_str_by(task_dir_path, 5); // remove /type
+    append(task_dir_path, "/argv");
+    int argv_fd = open(task_dir_path->data, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (argv_fd < 0) {
+        perror("open argv file");
+        free_str(task_dir_path);
+        return -1;
+    }
+
+    buffer_t* argc_buff = init_buf();
+    write32(argc_buff, argc);
+    if(write(argv_fd, argc_buff->data, argc_buff->length) < 0){
+        perror("write argv file");
+        free_str(task_dir_path);
+        free_buf(argc_buff);
+        close(argv_fd);
+        return -1;
+    }
+
+    if (write(argv_fd, argv->data, argv->length) < 0) {
+        perror("write argv file");
+        free_str(task_dir_path);
+        close(argv_fd);
+        return -1;
+    }
+    char ch = '\0';
+    appendn(argv, &ch, 1);
+    printf("Wrote %s in argv\n", argv->data);
+    free_str(task_dir_path);
+    close(argv_fd);
+    return 0;
+}
+

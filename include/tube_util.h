@@ -24,6 +24,7 @@
 // Codes d'erreur
 #define ERR_NOT_FOUND      U16('N','F')
 #define ERR_NOT_RUN        U16('N','R')
+#define ERR_CANNOT_CREATE  U16('N','C')
 
 // Type de combinaison
 #define COMBINE_SEQUENTIAL U16('S','Q')
@@ -150,5 +151,11 @@ int write_command(buffer_t *msg, command_t *cmd) ;
  * @return 0 on success
  */
 void bitmap_to_string(uint64_t bitmap, int max_val, char *buf, size_t bufsize);
+
+uint64_t str_min_to_bitmap(const char *s);
+
+uint32_t str_hours_to_bitmap(const char *s) ;
+
+uint8_t str_days_to_bitmap(const char *s);
 
 #endif

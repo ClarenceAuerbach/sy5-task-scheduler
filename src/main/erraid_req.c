@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -45,7 +46,7 @@ void command_to_string(command_t *cmd, string_t *result) {
     }
 }
 
-int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *task_array, string_t *tasks_path, int status_fd) {
+int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arrayp, string_t *tasks_path, int status_fd) {
     uint16_t opcode;
     buffer_t *reply = init_buf();
     int r = read16(req_fd, &opcode);
@@ -57,8 +58,126 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *task_array
     
     // DEBUG
     // printf("Received opcode: 0x%04x\n", opcode);
-    
+    task_array_t *task_array = *task_arrayp;
     switch(opcode) {
+        
+        case OP_CREATE: {
+           
+            uint64_t minutes = 0;
+            uint32_t hours = 0;
+            uint8_t days = 0;
+            uint64_t taskid = 0;
+
+            if (read64(req_fd, &minutes) < 0) {
+                free_buf(reply);
+                return -1;
+            }
+            if (read32(req_fd, &hours) < 0) {
+                free_buf(reply);
+                return -1;
+            }
+            if (read(req_fd, &days, 1) < 0) {
+                free_buf(reply);
+                return -1;
+            }
+            while ( find_task_index(task_array, taskid) != -1 ){
+                taskid++;
+            }
+
+            uint32_t argc = 0;
+            if (read32(req_fd, &argc) < 0) {
+                free_buf(reply);
+                return -1;
+            }
+
+            buffer_t *argv = init_buf();
+
+            for(uint32_t i = 0; i < argc; i++){
+                uint32_t len = 0;
+                if (read32(req_fd, &len) < 0) {
+                    free_buf(reply);
+                    return -1;
+                }
+                write32(argv, len);
+                uint8_t tmp_buff[len];
+
+                read(req_fd, tmp_buff, len);
+                appendn(argv, tmp_buff, len);
+            }
+
+            if(create_simple_task(tasks_path, taskid, minutes, hours, days, argc, argv) != 0) {
+                write16(reply, ANS_ERROR);
+                write16(reply, ERR_CANNOT_CREATE);
+                free_buf(argv);
+                break;
+            }
+            free_buf(argv);
+
+            char buff = 'c';
+            write(status_fd, &buff ,1);
+            printf("Updated erraid about task creation\n");
+
+            // Re-initialize task array
+            free_task_arr(task_array);
+            *task_arrayp = NULL;
+            if (init_task_array(task_arrayp, tasks_path) != 0) {
+                perror("Re-initializing task array");
+                free_buf(reply);
+                return -1;
+            }
+            
+            write16(reply, ANS_OK);
+
+            break;
+        }
+
+        case OP_REMOVE: {
+            uint64_t taskid;
+            if (read64(req_fd, &taskid) < 0) {
+                free_buf(reply);
+                return -1;
+            }
+
+            int idx = find_task_index(task_array, taskid);
+            if (idx < 0) {
+                // Task not found
+                write16(reply, ANS_ERROR);
+                write16(reply, ERR_NOT_FOUND);
+                break;
+            }
+
+            string_t *task_dir_path = new_str(tasks_path->data);
+            char id_path[65];
+            sprintf(id_path, "/%ld", taskid);
+            append(task_dir_path, id_path);
+            
+            if (remove_task_dir(task_dir_path) != 0) {
+                free_str(task_dir_path);
+                write16(reply, ANS_ERROR);
+                write16(reply, ERR_NOT_FOUND);
+                break;
+            }
+            free_str(task_dir_path);
+
+            char buff = 'c';
+            write(status_fd, &buff ,1);
+            printf("Updated erraid about task removal\n");
+            
+            
+            // Re-initialize task array
+            free_task_arr(task_array);
+            *task_arrayp = NULL;
+            if (init_task_array(task_arrayp, tasks_path) != 0) {
+                perror("Re-initializing task array");
+                free_buf(reply);
+                return -1;
+            }
+            
+            write16(reply, ANS_OK);
+            break;
+
+        }
+        
         case OP_LIST: {
             write16(reply, ANS_OK);
             
@@ -223,12 +342,11 @@ int init_req_handler(string_t *req_pipe_path, string_t *rep_pipe_path, task_arra
     }
     int r = 0;
     while(r == 0){
-        r = handle_request(req_fd, rep_pipe_path, task_array, tasks_path, status_fd);
+        r = handle_request(req_fd, rep_pipe_path, &task_array, tasks_path, status_fd);
         if (r < 0) {
             perror("Handle_request");
             char buff = 'q';
             write(status_fd, &buff ,1);
-            printf("Sent: %c\n", buff);
             close(req_fd);
             close(status_fd);
             exit(r);

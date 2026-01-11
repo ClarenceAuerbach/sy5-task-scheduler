@@ -58,4 +58,10 @@ int extract_cmd(command_t *dest_cmd, char *cmd_path);
 /* Free helpers */
 void free_task_arr(task_array_t *task_arr);
 
+int init_task_array(task_array_t **task_arrayp, string_t *tasks_path);
+
+int remove_task_dir(string_t *task_dir_path);
+
+int create_simple_task(string_t *tasks_path, uint64_t taskid, uint64_t minutes, uint32_t hours, uint8_t days, uint32_t argc, buffer_t * argv);
+
 #endif
