@@ -45,7 +45,7 @@ void command_to_string(command_t *cmd, string_t *result) {
     }
 }
 
-int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, string_t *tasks_path, int status_fd) {
+int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *task_array, string_t *tasks_path, int status_fd) {
     uint16_t opcode;
     buffer_t *reply = init_buf();
     int r = read16(req_fd, &opcode);
@@ -54,27 +54,32 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
         free_buf(reply);
         return -1;
     }
+
+    int debug_fd = open("/home/clarence/Licence/sy5-task-scheduler/DEBUG", O_WRONLY | O_CREAT | O_APPEND, 0644);
+    dprintf(debug_fd, "=== handle_request START ===\n");
+    dprintf(debug_fd, "Received opcode: 0x%04x\n", opcode);
     
     printf("Received opcode: 0x%04x\n", opcode);
     
     switch(opcode) {
         case OP_LIST: {
+            dprintf(debug_fd, "Handling OP_LIST\n");
             write16(reply, ANS_OK);
             
-            write32(reply, (uint32_t)tasks->length);
+            write32(reply, (uint32_t)task_array->length);
             
-            for (int i = 0; i < tasks->length; i++) {
-                write64(reply, tasks->tasks[i]->id);
+            for (int i = 0; i < task_array->length; i++) {
+                write64(reply, task_array->tasks[i]->id);
                 
                 // TIMING
-                timing_t *t = &tasks->tasks[i]->timings;
+                timing_t *t = &task_array->tasks[i]->timings;
                 write64(reply, t->minutes);   // uint64 big-endian
                 write32(reply, t->hours);      // uint32 big-endian
                 
                 appendn(reply, (uint8_t*)&t->daysofweek, 1);
 
                 string_t *cmdline = new_str("");
-                command_to_string(tasks->tasks[i]->command, cmdline);
+                command_to_string(task_array->tasks[i]->command, cmdline);
 
                 write32(reply, (uint32_t)cmdline->length);
                 
@@ -86,13 +91,14 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
         }
 
         case OP_TIMES_EXITCODES: {
+            dprintf(debug_fd, "Handling OP_TIMES_EXITCODES\n");
             uint64_t taskid;
             if (read64(req_fd, &taskid) < 0) {
                 free_buf(reply);
                 return -1;
             }
             
-            int idx = find_task_index(tasks, taskid);
+            int idx = find_task_index(task_array, taskid);
             if (idx < 0) {
                 // Task not found
                 write16(reply, ANS_ERROR);
@@ -146,12 +152,13 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
 
         case OP_STDOUT:
         case OP_STDERR: {
+            dprintf(debug_fd, "Handling OP_%s\n", opcode == OP_STDOUT ? "STDOUT" : "STDERR");
             uint64_t taskid;
             if (read64(req_fd, &taskid) < 0) {
                 free_buf(reply);
                 return -1;
             }
-            int idx = find_task_index(tasks, taskid);
+            int idx = find_task_index(task_array, taskid);
             if (idx < 0) {
                 write16(reply, ANS_ERROR);
                 write16(reply, ERR_NOT_FOUND);
@@ -187,6 +194,7 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
         }
 
         case OP_TERMINATE: {
+            dprintf(debug_fd, "Handling OP_TERMINATE\n");
             write16(reply, ANS_OK);
             char buff = 'q';
             write(status_fd, &buff ,1);
@@ -212,13 +220,20 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
         free_buf(reply);
         return -1;
     }
+
+    dup2(debug_fd, 1);
+    for(int i=0; i < task_array->length; i++){
+        print_task(*(task_array->tasks[i]));
+    }
+    
+    dprintf(debug_fd, "Sending reply %x\n", reply->data);
     write_atomic_chunks(rep_fd, reply->data, reply->length);
     close(rep_fd);
     free_buf(reply);
     return 0;
 }
 
-int init_req_handler(string_t *req_pipe_path, string_t *rep_pipe_path, task_array_t *tasks, string_t *tasks_path, int status_fd){
+int init_req_handler(string_t *req_pipe_path, string_t *rep_pipe_path, task_array_t *task_array, string_t *tasks_path, int status_fd){
     
     int req_fd = open(req_pipe_path->data, O_RDWR);
 
@@ -228,7 +243,7 @@ int init_req_handler(string_t *req_pipe_path, string_t *rep_pipe_path, task_arra
     }
     int r = 0;
     while(r == 0){
-        r = handle_request(req_fd, rep_pipe_path, tasks, tasks_path, status_fd);
+        r = handle_request(req_fd, rep_pipe_path, task_array, tasks_path, status_fd);
         if (r < 0) {
             perror("Handle_request");
             char buff = 'q';
