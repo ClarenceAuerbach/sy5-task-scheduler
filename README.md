@@ -91,23 +91,23 @@ Tadmor provides the following options:
   Stop the daemon
 
 ## Roadmap
+  
+1st milestone:  
+Task array initialization   
+Task task executions  
+Next execution times calculation  
+  
+2nd milestone:  
+Erraid correction for tests  
+Tube implementation  
+Request and response for consultation  
 
-1st milestone:
-Task array initialization 
-Task task executions
-Next execution times calculation 
-
-2nd milestone:
-Erraid correction for tests
-Tube implementation
-Request and response for consultation
-
-3rd milestone:
-Redisigning architecture for cleaner and safer code  
-Client request writing correction for tests
-Server response correction for tests
-Create and remove options implementation
-
+3rd milestone:  
+Redisigning architecture for cleaner and safer code    
+Client request writing correction for tests  
+Server response correction for tests  
+Create and remove options implementation  
+  
 End of the Project !
 
 ## Authors and acknowledgment
