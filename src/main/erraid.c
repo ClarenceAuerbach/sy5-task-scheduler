@@ -59,8 +59,8 @@ int tube_timeout(int tube_fd, int timeout) {
         .events = POLLIN
     };
     int ret = poll(&p, 1, timeout);
-    
-    printf("revents value : %d\n", p.revents);
+    // DEBUG
+    // printf("revents value : %d\n", p.revents);
     return ret;
 }
 
@@ -452,6 +452,7 @@ int main(int argc, char *argv[]) {
             read(pipes_fd[0], &buff, 1);
             switch(buff){
                 case 'q':
+                    printf("Erraid stop requested\n");
                     stop_requested = 1;
                 break;
                 case 'c':

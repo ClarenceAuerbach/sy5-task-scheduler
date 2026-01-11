@@ -54,16 +54,12 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *task_array
         free_buf(reply);
         return -1;
     }
-
-    int debug_fd = open("/home/clarence/Licence/sy5-task-scheduler/DEBUG", O_WRONLY | O_CREAT | O_APPEND, 0644);
-    dprintf(debug_fd, "=== handle_request START ===\n");
-    dprintf(debug_fd, "Received opcode: 0x%04x\n", opcode);
     
-    printf("Received opcode: 0x%04x\n", opcode);
+    // DEBUG
+    // printf("Received opcode: 0x%04x\n", opcode);
     
     switch(opcode) {
         case OP_LIST: {
-            dprintf(debug_fd, "Handling OP_LIST\n");
             write16(reply, ANS_OK);
             
             write32(reply, (uint32_t)task_array->length);
@@ -78,20 +74,12 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *task_array
                 
                 appendn(reply, (uint8_t*)&t->daysofweek, 1);
 
-                string_t *cmdline = new_str("");
-                command_to_string(task_array->tasks[i]->command, cmdline);
-
-                write32(reply, (uint32_t)cmdline->length);
-                
-                appendn(reply, cmdline->data, cmdline->length);
-                
-                free_str(cmdline);
+                write_command(reply, task_array->tasks[i]->command);
             }
             break;
         }
 
         case OP_TIMES_EXITCODES: {
-            dprintf(debug_fd, "Handling OP_TIMES_EXITCODES\n");
             uint64_t taskid;
             if (read64(req_fd, &taskid) < 0) {
                 free_buf(reply);
@@ -152,7 +140,6 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *task_array
 
         case OP_STDOUT:
         case OP_STDERR: {
-            dprintf(debug_fd, "Handling OP_%s\n", opcode == OP_STDOUT ? "STDOUT" : "STDERR");
             uint64_t taskid;
             if (read64(req_fd, &taskid) < 0) {
                 free_buf(reply);
@@ -194,7 +181,6 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *task_array
         }
 
         case OP_TERMINATE: {
-            dprintf(debug_fd, "Handling OP_TERMINATE\n");
             write16(reply, ANS_OK);
             char buff = 'q';
             write(status_fd, &buff ,1);
@@ -221,12 +207,6 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *task_array
         return -1;
     }
 
-    dup2(debug_fd, 1);
-    for(int i=0; i < task_array->length; i++){
-        print_task(*(task_array->tasks[i]));
-    }
-    
-    dprintf(debug_fd, "Sending reply %x\n", reply->data);
     write_atomic_chunks(rep_fd, reply->data, reply->length);
     close(rep_fd);
     free_buf(reply);

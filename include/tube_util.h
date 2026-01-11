@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "str_util.h"
+#include "task.h"
 
 #define U16(a,b) ((uint16_t)((a) << 8 | (b))) // Little endian
 
@@ -133,6 +134,14 @@ int read64(int fd, uint64_t *val);
  * @return 0 on success, -1 on error
  */
 int read_command(int fd, string_t *result);
+
+/**
+ * Write a command structure to a buffer_t according to the protocol
+ * @param msg destination buffer_t
+ * @param cmd command structure to write
+ * @return 0 on success, -1 on error
+ */
+int write_command(buffer_t *msg, command_t *cmd) ;
 
 /**
  * Converts timing or bitmap to a readable string

@@ -9,6 +9,7 @@
 
 #include "tube_util.h"
 #include "str_util.h"
+#include "task.h"
 
 int write_atomic_chunks(int fd, uint8_t *s, size_t len) {
     while (len > 0) {
@@ -111,7 +112,6 @@ int read64(int fd, uint64_t *val) {
     return 0;
 }
 
-// Lire une commande récursivement
 int read_command(int fd, string_t *result) {
     uint16_t type;
     if (read16(fd, &type) != 0) return -1;
@@ -165,6 +165,38 @@ int read_command(int fd, string_t *result) {
         append(result, ")");
         
     } 
+    return 0;
+}
+
+int write_command(buffer_t *msg, command_t *cmd) {
+    if (!strcmp(cmd->type, "SI")) {
+        
+        write16(msg, 0x5349);
+        
+        write32(msg, cmd->args.argc);
+        
+        for (uint32_t i = 0; i < cmd->args.argc; i++) {
+            write32(msg, (uint32_t)cmd->args.argv[i].length);
+            appendn(msg, cmd->args.argv[i].data, cmd->args.argv[i].length);
+        }
+        
+    } else if (!strcmp(cmd->type, "SQ")) {
+        // TYPE = 'SQ'
+        write16(msg, 0x5351);
+        
+        // NBCMDS
+        write32(msg, cmd->nbcmds);
+        
+        // Pour chaque sous-commande : récursion
+        for (uint32_t i = 0; i < cmd->nbcmds; i++) {
+            write_command(msg, &cmd->cmd[i]);
+        }
+        
+    } else {
+        fprintf(stderr, "Unknown command type: %s\n", cmd->type);
+        return -1;
+    }
+    
     return 0;
 }
 
