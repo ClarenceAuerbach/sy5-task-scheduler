@@ -18,29 +18,29 @@ string_t *PIPES_DIRECTORY;
 
 
 /* Send a LIST request and display response */
-int handle_list(int req_fd, string_t *rep_pipe_path) {
+int handle_list(int req_fd, string_t *rep_pipe_path) {  
   
     buffer_t *msg = init_buf();
     if (!msg) {
         return -1;
-    }
+    }  
 
     if (write16(msg, OP_LIST) != 0) {
-        free_buf(msg);
+        free_buf(msg);  
         return -1;
     }
 
 
     if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
         free_buf(msg);
-        return -1;
+        return -1;  
     }
-    free_buf(msg);
+    free_buf(msg);  
 
     int rep_fd = open(rep_pipe_path->data, O_RDONLY);
     if (rep_fd < 0) {
-        perror("open reply pipe");
-        return -1;
+        perror("open reply pipe");  
+        return -1;  
     }
     
     uint16_t anstype;
