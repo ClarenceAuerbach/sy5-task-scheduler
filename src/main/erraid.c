@@ -311,9 +311,9 @@ int init_task_array(task_array_t **task_arrayp, string_t *tasks_path) {
         task_array->next_times = malloc(task_count * sizeof(time_t));
         if (!task_array->next_times) return -1;
 
-        time_t now = time(NULL);
-        for(int i = 0; i < task_count; i++) {
-            task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
+        time_t now = time(NULL);  
+        for(int i = 0; i < task_count; i++) {  
+            task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);   
         }
     } else {
         task_array->tasks = NULL;
