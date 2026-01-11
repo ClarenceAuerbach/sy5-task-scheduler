@@ -30,7 +30,6 @@ make distclean
 
 ## Usage
 Tadmor provides the following options:
-# Task Creation / Deletion
 
 ## Task creation
 
@@ -55,6 +54,8 @@ Tadmor provides the following options:
   Used in combination with the previous options, defines a task  
   without an execution schedule (therefore it will never be executed),  
   and is intended to be combined with other tasks to create a complex command
+
+## Task deletion
 
 - `-r TASKID`  
   Deletion of the task with identifier `TASKID`
