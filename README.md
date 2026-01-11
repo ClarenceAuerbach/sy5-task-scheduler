@@ -1,7 +1,5 @@
 # SY5-Task-Scheduler
 
-## Cranberry
-
 ## Description
 A daemon-client pair allowing a user to automate the **periodic execution of tasks** at specified times, similar to the [cron](https://en.wikipedia.org/wiki/Cron) utility.
 
@@ -100,8 +98,6 @@ the command to execute is `(CMD_1 ; ... ; CMD_N)`
 : stop the daemon
 
 ## Roadmap
-jalon-1 :
-
 Git repository exists
 
 AUTHORS.md file is present
@@ -115,6 +111,17 @@ Execution of simple tasks at scheduled times
 Execution of task sequences at scheduled times
 
 Log file updates (return values and standard outputs)
+
+Beginning of tadmor, implementations of requests and tubes
+
+Added strings and reorganised the project
+
+Communication between tadmor and erraid. Assured by erraid_req
+
+Implementation of multiple type of tasks
+
+
+
 ## Authors and acknowledgment
 Thanks to all contributors.
 

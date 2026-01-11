@@ -334,3 +334,54 @@ void bitmap_to_string(uint64_t bitmap, int max_val, char *buf, size_t bufsize) {
         i = end + 1;
     }
 }
+
+static uint64_t parse_bitmap(const char *s, int max_val) {
+    uint64_t bitmap = 0;
+
+    if (strcmp(s, "*") == 0) {
+        for (int i = 0; i <= max_val; i++)
+            bitmap |= (1ULL << i);
+        return bitmap;
+    }
+
+    char *copy = strdup(s);
+    char *tok = strtok(copy, ",");
+
+    while (tok) {
+        int start, end;
+
+        if (sscanf(tok, "%d-%d", &start, &end) == 2) {
+            if (start > end) {
+                int tmp = start;
+                start = end;
+                end = tmp;
+            }
+            if (start < 0) start = 0;
+            if (end > max_val) end = max_val;
+
+            for (int i = start; i <= end; i++)
+                bitmap |= (1ULL << i);
+
+        } else if (sscanf(tok, "%d", &start) == 1) {
+            if (start >= 0 && start <= max_val)
+                bitmap |= (1ULL << start);
+        }
+
+        tok = strtok(NULL, ",");
+    }
+
+    free(copy);
+    return bitmap;
+}
+
+uint64_t str_min_to_bitmap(const char *s) {
+    return parse_bitmap(s, 59);
+}
+
+uint32_t str_hours_to_bitmap(const char *s) {
+    return (uint32_t)parse_bitmap(s, 23);
+}
+
+uint8_t str_days_to_bitmap(const char *s) {
+    return (uint8_t)parse_bitmap(s, 6);
+}

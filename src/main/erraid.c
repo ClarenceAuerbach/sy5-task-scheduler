@@ -18,11 +18,11 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "erraid_util.h"
 #include "str_util.h"
 #include "erraid_req.h"
 #include "task.h"
 #include "timing_t.h"
+#include "erraid_util.h"
 
 string_t *RUN_DIRECTORY;
 string_t *PIPES_DIRECTORY;
@@ -61,6 +61,7 @@ int tube_timeout(int tube_fd, int timeout) {
     int ret = poll(&p, 1, timeout);
     // DEBUG
     // printf("revents value : %d\n", p.revents);
+    
     return ret;
 }
 
@@ -380,38 +381,6 @@ int create_pipes(string_t *request_pipe_path, string_t *reply_pipe_path) {
     return 0;
 }
 
-/* We create task_array */
-int init_task_array(task_array_t **task_arrayp, string_t *tasks_path) {
-    *task_arrayp = malloc(sizeof(task_array_t));
-    if (!(*task_arrayp)) return -1;
-    task_array_t *task_array = (*task_arrayp);
-    
-    int task_count = count_dir_size(tasks_path->data, 1);
-    task_array->length = task_count;
-    /* If there are no tasks we skip extraction*/
-    if (task_count > 0) {
-        task_array->tasks = malloc(task_count * sizeof(task_t *));
-        if (!task_array->tasks) return -1;
-
-        if (extract_all(task_array, tasks_path)) {
-            perror("Extract_all failed");
-            return -1;
-        }
-
-        task_array->next_times = malloc(task_count * sizeof(time_t));
-        if (!task_array->next_times) return -1;
-
-        time_t now = time(NULL);
-        for(int i = 0; i < task_count; i++) {
-            task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
-        }
-    } else {
-        task_array->tasks = NULL;
-        task_array->next_times = NULL;
-    }
-    return 0;
-}
-
 int main(int argc, char *argv[]) {
     int foreground = 0;
     int opt;
@@ -539,33 +508,31 @@ int main(int argc, char *argv[]) {
         }
         if (status > 0) { // check tubes
             char buff;
-            read(pipes_fd[0], &buff, 1);
-            switch(buff){
+            ssize_t n = read(pipes_fd[0], &buff, 1);
+            
+            if (n == 0) {
+                printf("All writers closed the status pipe\n");
+                stop_requested = 1;
+                break;
+            } else if (n < 0) {
+                perror("read from status pipe");
+                break;
+            }
+            switch(buff) {
                 case 'q':
                     printf("Erraid stop requested\n");
                     stop_requested = 1;
-                break;
+                    break;
                 case 'c':
-                    // reload tasks
-
+                    printf("Changes to task_array\n");
                     free_task_arr(task_array);
-                    int task_count = count_dir_size(tasks_path->data, 1);
-                    task_array->length = task_count;  
-                    if (task_count > 0) {
-                        task_array->tasks = malloc(task_count * sizeof(task_t *));
-                        if (!task_array->tasks) goto cleanup;  
-                    }
-                    if (extract_all(task_array, tasks_path)) {
-                        perror("Extract_all failed");
-                        goto cleanup;
-                    }
-                    time_t now = time(NULL);
-                    for(int i = 0; i < task_count; i++) {
-                        task_array->next_times[i] = next_exec_time(task_array->tasks[i]->timings, now);
-                    }
-                break;
-                default: break;               
-            };
+                    task_array = NULL;
+                    init_task_array(&task_array, tasks_path);
+                    break;
+                default:
+                    fprintf(stderr, "Unknown command from status pipe: %c (0x%02x)\n", buff, (unsigned char)buff);
+                    break;               
+            }
         }
     }
     /* ============================================== */
