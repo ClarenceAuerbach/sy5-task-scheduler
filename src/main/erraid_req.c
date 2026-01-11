@@ -51,6 +51,7 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
     int r = read16(req_fd, &opcode);
     if (r == -1) {
         perror("Reading opcode");
+        free_buf(reply);
         return -1;
     }
     
@@ -70,9 +71,8 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
                 write64(reply, t->minutes);   // uint64 big-endian
                 write32(reply, t->hours);      // uint32 big-endian
                 
-                char days_byte = (char)t->daysofweek;
-                appendn(reply, &days_byte, 1);
-                
+                appendn(reply, (uint8_t*)&t->daysofweek, 1);
+
                 string_t *cmdline = new_str("");
                 command_to_string(tasks->tasks[i]->command, cmdline);
 
@@ -88,6 +88,7 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
         case OP_TIMES_EXITCODES: {
             uint64_t taskid;
             if (read64(req_fd, &taskid) < 0) {
+                free_buf(reply);
                 return -1;
             }
             
@@ -132,6 +133,7 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t *tasks, str
                 if (nb <= 0) {
                     if (nb < 0) perror("read times-exitcodes");
                     close(te_fd);
+                    free_buf(reply);
                     return -1;
                 }
                 appendn(reply, (char*)buf, nb);

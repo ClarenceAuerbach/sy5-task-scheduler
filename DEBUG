@@ -1,10 +1,10 @@
 DEBUG: argc=4
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-l
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 
 === handle_list START ===
@@ -12,7 +12,7 @@ Writing OP_LIST (0x4C53)
 msg->length=2, msg->data=[4C 53 ]
 Calling write_atomic_chunks to fd 4
 Request sent successfully
-Opening reply pipe: /tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+Opening reply pipe: /tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 Reply pipe opened, fd=6
 Calling read16 for anstype
 read16 returned 0, anstype=0x4F4B
@@ -23,10 +23,10 @@ nbtasks=0
 DEBUG: argc=4
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-l
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 
 === handle_list START ===
@@ -34,7 +34,7 @@ Writing OP_LIST (0x4C53)
 msg->length=2, msg->data=[4C 53 ]
 Calling write_atomic_chunks to fd 4
 Request sent successfully
-Opening reply pipe: /tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+Opening reply pipe: /tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 Reply pipe opened, fd=6
 Calling read16 for anstype
 read16 returned 0, anstype=0x4F4B
@@ -51,16 +51,15 @@ Reading task 1/1
   Reading days...
   days=0x7F
   cmdline='echo test-1'
-  Reading cmdline (11 bytes)...
-    read() returned 0 (total=0/11)
-  ERROR: read cmdline failed at offset 0
+  Formatted: 0: * * * echo test-1
+=== handle_list SUCCESS ===
 DEBUG: argc=4
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-l
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 
 === handle_list START ===
@@ -68,7 +67,7 @@ Writing OP_LIST (0x4C53)
 msg->length=2, msg->data=[4C 53 ]
 Calling write_atomic_chunks to fd 4
 Request sent successfully
-Opening reply pipe: /tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+Opening reply pipe: /tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 Reply pipe opened, fd=6
 Calling read16 for anstype
 read16 returned 0, anstype=0x4F4B
@@ -85,27 +84,26 @@ Reading task 1/2
   Reading days...
   days=0x7F
   cmdline='echo test-2'
-  Reading cmdline (11 bytes)...
-    read() returned 11 (total=11/11)
-  cmdline='(null)'
-  Formatted: 1: * * * (null)
+  Formatted: 1: * * * echo test-2
 Reading task 2/2
   Reading taskid...
-  taskid=18446744073692839935
+  taskid=0
   Reading minutes...
-  minutes=0xFF7F534900000002
+  minutes=0x0FFFFFFFFFFFFFFF
   Reading hours...
-  hours=0x00000004
+  hours=0x00FFFFFF
   Reading days...
-  days=0x65
-  ERROR: read_command failed
+  days=0x7F
+  cmdline='echo test-1'
+  Formatted: 0: * * * echo test-1
+=== handle_list SUCCESS ===
 DEBUG: argc=4
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-l
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 
 === handle_list START ===
@@ -113,7 +111,7 @@ Writing OP_LIST (0x4C53)
 msg->length=2, msg->data=[4C 53 ]
 Calling write_atomic_chunks to fd 4
 Request sent successfully
-Opening reply pipe: /tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+Opening reply pipe: /tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 Reply pipe opened, fd=6
 Calling read16 for anstype
 read16 returned 0, anstype=0x4F4B
@@ -130,15 +128,48 @@ Reading task 1/4
   Reading days...
   days=0x00
   cmdline='echo NEVER'
-  Reading cmdline (10 bytes)...
-    read() returned 10 (total=10/10)
+  Formatted: 5: - - - echo NEVER
+Reading task 2/4
+  Reading taskid...
+  taskid=4
+  Reading minutes...
+  minutes=0x0000000000000410
+  Reading hours...
+  hours=0x00FFFFFF
+  Reading days...
+  days=0x0A
+  cmdline='ls NONEXISTENT_FILE'
+  Formatted: 4: 4,10 * 1,3 ls NONEXISTENT_FILE
+Reading task 3/4
+  Reading taskid...
+  taskid=3
+  Reading minutes...
+  minutes=0x0000000000000002
+  Reading hours...
+  hours=0x000000AA
+  Reading days...
+  days=0x7F
+  cmdline='date'
+  Formatted: 3: 1 1,3,5,7 * date
+Reading task 4/4
+  Reading taskid...
+  taskid=2
+  Reading minutes...
+  minutes=0x0000000000000002
+  Reading hours...
+  hours=0x00000004
+  Reading days...
+  days=0x7F
+  cmdline='date'
+  Formatted: 2: 1 2 * date
+=== handle_list SUCCESS ===
 DEBUG: argc=4
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-l
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 
 === handle_list START ===
@@ -146,7 +177,7 @@ Writing OP_LIST (0x4C53)
 msg->length=2, msg->data=[4C 53 ]
 Calling write_atomic_chunks to fd 4
 Request sent successfully
-Opening reply pipe: /tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+Opening reply pipe: /tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 Reply pipe opened, fd=6
 Calling read16 for anstype
 read16 returned 0, anstype=0x4F4B
@@ -163,61 +194,60 @@ Reading task 1/1
   Reading days...
   days=0x7F
   cmdline='date'
-  Reading cmdline (4 bytes)...
-    read() returned 0 (total=0/4)
-  ERROR: read cmdline failed at offset 0
+  Formatted: 6: 1,3-6,9-15 * * date
+=== handle_list SUCCESS ===
 DEBUG: argc=5
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-x
 DEBUG: argv[4]=7
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 DEBUG: argc=5
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-o
 DEBUG: argv[4]=7
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 DEBUG: argc=5
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-e
 DEBUG: argv[4]=8
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 DEBUG: argc=5
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-x
 DEBUG: argv[4]=6000
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 DEBUG: argc=5
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-o
 DEBUG: argv[4]=9
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 DEBUG: argc=4
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-l
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 
 === handle_list START ===
@@ -225,7 +255,7 @@ Writing OP_LIST (0x4C53)
 msg->length=2, msg->data=[4C 53 ]
 Calling write_atomic_chunks to fd 4
 Request sent successfully
-Opening reply pipe: /tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+Opening reply pipe: /tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 Reply pipe opened, fd=6
 Calling read16 for anstype
 read16 returned 0, anstype=0x4F4B
@@ -242,16 +272,15 @@ Reading task 1/1
   Reading days...
   days=0x7F
   cmdline='((echo AA ; echo AB) ; (echo BA ; echo BB))'
-  Reading cmdline (43 bytes)...
-    read() returned 0 (total=0/43)
-  ERROR: read cmdline failed at offset 0
+  Formatted: 16: * * * ((echo AA ; echo AB) ; (echo BA ; echo BB))
+=== handle_list SUCCESS ===
 DEBUG: argc=4
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-l
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 
 === handle_list START ===
@@ -259,7 +288,7 @@ Writing OP_LIST (0x4C53)
 msg->length=2, msg->data=[4C 53 ]
 Calling write_atomic_chunks to fd 4
 Request sent successfully
-Opening reply pipe: /tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+Opening reply pipe: /tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 Reply pipe opened, fd=6
 Calling read16 for anstype
 read16 returned 0, anstype=0x4F4B
@@ -276,16 +305,15 @@ Reading task 1/1
   Reading days...
   days=0x0A
   cmdline='((((echo AAAA ; echo AAAB) ; (echo AABA ; echo AABB)) ; ((echo ABAA ; echo ABAB) ; (echo ABBA ; echo ABBB))) ; (((echo BAAA ; echo BAAB) ; (echo BABA ; echo BABB)) ; ((echo BBAA ; echo BBAB) ; (echo BBBA ; echo BBBB))))'
-  Reading cmdline (219 bytes)...
-    read() returned 0 (total=0/219)
-  ERROR: read cmdline failed at offset 0
+  Formatted: 47: 1,3-6,9-15 1,3-5,7 1,3 ((((echo AAAA ; echo AAAB) ; (echo AABA ; echo AABB)) ; ((echo ABAA ; echo ABAB) ; (echo ABBA ; echo ABBB))) ; (((echo BAAA ; echo BAAB) ; (echo BABA ; echo BABB)) ; ((echo BBAA ; echo BBAB) ; (echo BBBA ; echo BBBB))))
+=== handle_list SUCCESS ===
 DEBUG: argc=4
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-l
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully
 
 === handle_list START ===
@@ -293,7 +321,7 @@ Writing OP_LIST (0x4C53)
 msg->length=2, msg->data=[4C 53 ]
 Calling write_atomic_chunks to fd 4
 Request sent successfully
-Opening reply pipe: /tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+Opening reply pipe: /tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
 Reply pipe opened, fd=6
 Calling read16 for anstype
 read16 returned 0, anstype=0x4F4B
@@ -310,15 +338,365 @@ Reading task 1/1
   Reading days...
   days=0x0A
   cmdline='((((echo AAAA ; echo AAAB) ; (echo AABA ; echo AABB)) ; ((echo ABAA ; echo ABAB) ; (echo ABBA ; echo ABBB))) ; (((echo BAAA ; echo BAAB) ; (echo BABA ; echo BABB)) ; ((echo BBAA ; echo BBAB) ; (echo BBBA ; echo BBBB))))'
-  Reading cmdline (219 bytes)...
-    read() returned 0 (total=0/219)
-  ERROR: read cmdline failed at offset 0
+  Formatted: 47: 1,3-6,9-15 1,3-5,7 1,3 ((((echo AAAA ; echo AAAB) ; (echo AABA ; echo AABB)) ; ((echo ABAA ; echo ABAB) ; (echo ABBA ; echo ABBB))) ; (((echo BAAA ; echo BAAB) ; (echo BABA ; echo BABB)) ; ((echo BBAA ; echo BBAB) ; (echo BBBA ; echo BBBB))))
+=== handle_list SUCCESS ===
 DEBUG: argc=5
 DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
 DEBUG: argv[1]=-P
-DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes
 DEBUG: argv[3]=-o
 DEBUG: argv[4]=48
-DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-request-pipe
-DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmp0hymcikq/pipes/erraid-reply-pipe
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmpynx5tsrr/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+DEBUG: argc=4
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-l
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+
+=== handle_list START ===
+Writing OP_LIST (0x4C53)
+msg->length=2, msg->data=[4C 53 ]
+Calling write_atomic_chunks to fd 4
+Request sent successfully
+Opening reply pipe: /tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+Reply pipe opened, fd=6
+Calling read16 for anstype
+read16 returned 0, anstype=0x4F4B
+anstype OK
+Calling read32 for nbtasks
+nbtasks=0
+=== handle_list SUCCESS ===
+DEBUG: argc=4
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-l
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+
+=== handle_list START ===
+Writing OP_LIST (0x4C53)
+msg->length=2, msg->data=[4C 53 ]
+Calling write_atomic_chunks to fd 4
+Request sent successfully
+Opening reply pipe: /tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+Reply pipe opened, fd=6
+Calling read16 for anstype
+read16 returned 0, anstype=0x4F4B
+anstype OK
+Calling read32 for nbtasks
+nbtasks=1
+Reading task 1/1
+  Reading taskid...
+  taskid=0
+  Reading minutes...
+  minutes=0x0FFFFFFFFFFFFFFF
+  Reading hours...
+  hours=0x00FFFFFF
+  Reading days...
+  days=0x7F
+  cmdline='echo test-1'
+  Formatted: 0: * * * echo test-1
+=== handle_list SUCCESS ===
+DEBUG: argc=4
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-l
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+
+=== handle_list START ===
+Writing OP_LIST (0x4C53)
+msg->length=2, msg->data=[4C 53 ]
+Calling write_atomic_chunks to fd 4
+Request sent successfully
+Opening reply pipe: /tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+Reply pipe opened, fd=6
+Calling read16 for anstype
+read16 returned 0, anstype=0x4F4B
+anstype OK
+Calling read32 for nbtasks
+nbtasks=2
+Reading task 1/2
+  Reading taskid...
+  taskid=1
+  Reading minutes...
+  minutes=0x0FFFFFFFFFFFFFFF
+  Reading hours...
+  hours=0x00FFFFFF
+  Reading days...
+  days=0x7F
+  cmdline='echo test-2'
+  Formatted: 1: * * * echo test-2
+Reading task 2/2
+  Reading taskid...
+  taskid=0
+  Reading minutes...
+  minutes=0x0FFFFFFFFFFFFFFF
+  Reading hours...
+  hours=0x00FFFFFF
+  Reading days...
+  days=0x7F
+  cmdline='echo test-1'
+  Formatted: 0: * * * echo test-1
+=== handle_list SUCCESS ===
+DEBUG: argc=4
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-l
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+
+=== handle_list START ===
+Writing OP_LIST (0x4C53)
+msg->length=2, msg->data=[4C 53 ]
+Calling write_atomic_chunks to fd 4
+Request sent successfully
+Opening reply pipe: /tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+Reply pipe opened, fd=6
+Calling read16 for anstype
+read16 returned 0, anstype=0x4F4B
+anstype OK
+Calling read32 for nbtasks
+nbtasks=4
+Reading task 1/4
+  Reading taskid...
+  taskid=5
+  Reading minutes...
+  minutes=0x0000000000000000
+  Reading hours...
+  hours=0x00000000
+  Reading days...
+  days=0x00
+  cmdline='echo NEVER'
+  Formatted: 5: - - - echo NEVER
+Reading task 2/4
+  Reading taskid...
+  taskid=4
+  Reading minutes...
+  minutes=0x0000000000000410
+  Reading hours...
+  hours=0x00FFFFFF
+  Reading days...
+  days=0x0A
+  cmdline='ls NONEXISTENT_FILE'
+  Formatted: 4: 4,10 * 1,3 ls NONEXISTENT_FILE
+Reading task 3/4
+  Reading taskid...
+  taskid=3
+  Reading minutes...
+  minutes=0x0000000000000002
+  Reading hours...
+  hours=0x000000AA
+  Reading days...
+  days=0x7F
+  cmdline='date'
+  Formatted: 3: 1 1,3,5,7 * date
+Reading task 4/4
+  Reading taskid...
+  taskid=2
+  Reading minutes...
+  minutes=0x0000000000000002
+  Reading hours...
+  hours=0x00000004
+  Reading days...
+  days=0x7F
+  cmdline='date'
+  Formatted: 2: 1 2 * date
+=== handle_list SUCCESS ===
+DEBUG: argc=4
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-l
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+
+=== handle_list START ===
+Writing OP_LIST (0x4C53)
+msg->length=2, msg->data=[4C 53 ]
+Calling write_atomic_chunks to fd 4
+Request sent successfully
+Opening reply pipe: /tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+Reply pipe opened, fd=6
+Calling read16 for anstype
+read16 returned 0, anstype=0x4F4B
+anstype OK
+Calling read32 for nbtasks
+nbtasks=1
+Reading task 1/1
+  Reading taskid...
+  taskid=6
+  Reading minutes...
+  minutes=0x000000000000FE7A
+  Reading hours...
+  hours=0x00FFFFFF
+  Reading days...
+  days=0x7F
+  cmdline='date'
+  Formatted: 6: 1,3-6,9-15 * * date
+=== handle_list SUCCESS ===
+DEBUG: argc=5
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-x
+DEBUG: argv[4]=7
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+DEBUG: argc=5
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-o
+DEBUG: argv[4]=7
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+DEBUG: argc=5
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-e
+DEBUG: argv[4]=8
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+DEBUG: argc=5
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-x
+DEBUG: argv[4]=6000
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+DEBUG: argc=5
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-o
+DEBUG: argv[4]=9
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+DEBUG: argc=4
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-l
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+
+=== handle_list START ===
+Writing OP_LIST (0x4C53)
+msg->length=2, msg->data=[4C 53 ]
+Calling write_atomic_chunks to fd 4
+Request sent successfully
+Opening reply pipe: /tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+Reply pipe opened, fd=6
+Calling read16 for anstype
+read16 returned 0, anstype=0x4F4B
+anstype OK
+Calling read32 for nbtasks
+nbtasks=1
+Reading task 1/1
+  Reading taskid...
+  taskid=16
+  Reading minutes...
+  minutes=0x0FFFFFFFFFFFFFFF
+  Reading hours...
+  hours=0x00FFFFFF
+  Reading days...
+  days=0x7F
+  cmdline='((echo AA ; echo AB) ; (echo BA ; echo BB))'
+  Formatted: 16: * * * ((echo AA ; echo AB) ; (echo BA ; echo BB))
+=== handle_list SUCCESS ===
+DEBUG: argc=4
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-l
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+
+=== handle_list START ===
+Writing OP_LIST (0x4C53)
+msg->length=2, msg->data=[4C 53 ]
+Calling write_atomic_chunks to fd 4
+Request sent successfully
+Opening reply pipe: /tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+Reply pipe opened, fd=6
+Calling read16 for anstype
+read16 returned 0, anstype=0x4F4B
+anstype OK
+Calling read32 for nbtasks
+nbtasks=1
+Reading task 1/1
+  Reading taskid...
+  taskid=47
+  Reading minutes...
+  minutes=0x000000000000FE7A
+  Reading hours...
+  hours=0x000000BA
+  Reading days...
+  days=0x0A
+  cmdline='((((echo AAAA ; echo AAAB) ; (echo AABA ; echo AABB)) ; ((echo ABAA ; echo ABAB) ; (echo ABBA ; echo ABBB))) ; (((echo BAAA ; echo BAAB) ; (echo BABA ; echo BABB)) ; ((echo BBAA ; echo BBAB) ; (echo BBBA ; echo BBBB))))'
+  Formatted: 47: 1,3-6,9-15 1,3-5,7 1,3 ((((echo AAAA ; echo AAAB) ; (echo AABA ; echo AABB)) ; ((echo ABAA ; echo ABAB) ; (echo ABBA ; echo ABBB))) ; (((echo BAAA ; echo BAAB) ; (echo BABA ; echo BABB)) ; ((echo BBAA ; echo BBAB) ; (echo BBBA ; echo BBBB))))
+=== handle_list SUCCESS ===
+DEBUG: argc=4
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-l
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+DEBUG: req_fd opened successfully
+
+=== handle_list START ===
+Writing OP_LIST (0x4C53)
+msg->length=2, msg->data=[4C 53 ]
+Calling write_atomic_chunks to fd 4
+Request sent successfully
+Opening reply pipe: /tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
+Reply pipe opened, fd=6
+Calling read16 for anstype
+read16 returned 0, anstype=0x4F4B
+anstype OK
+Calling read32 for nbtasks
+nbtasks=1
+Reading task 1/1
+  Reading taskid...
+  taskid=47
+  Reading minutes...
+  minutes=0x000000000000FE7A
+  Reading hours...
+  hours=0x000000BA
+  Reading days...
+  days=0x0A
+  cmdline='((((echo AAAA ; echo AAAB) ; (echo AABA ; echo AABB)) ; ((echo ABAA ; echo ABAB) ; (echo ABBA ; echo ABBB))) ; (((echo BAAA ; echo BAAB) ; (echo BABA ; echo BABB)) ; ((echo BBAA ; echo BBAB) ; (echo BBBA ; echo BBBB))))'
+  Formatted: 47: 1,3-6,9-15 1,3-5,7 1,3 ((((echo AAAA ; echo AAAB) ; (echo AABA ; echo AABB)) ; ((echo ABAA ; echo ABAB) ; (echo ABBA ; echo ABBB))) ; (((echo BAAA ; echo BAAB) ; (echo BABA ; echo BABB)) ; ((echo BBAA ; echo BBAB) ; (echo BBBA ; echo BBBB))))
+=== handle_list SUCCESS ===
+DEBUG: argc=5
+DEBUG: argv[0]=/home/clarence/Licence/sy5-task-scheduler/.sy5-2025-2026-projet-erraid-autotests.nosync/../tadmor
+DEBUG: argv[1]=-P
+DEBUG: argv[2]=/tmp/clarence/erraid-tests/tmppc9llojk/pipes
+DEBUG: argv[3]=-o
+DEBUG: argv[4]=48
+DEBUG: req_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-request-pipe
+DEBUG: rep_pipe_path=/tmp/clarence/erraid-tests/tmppc9llojk/pipes/erraid-reply-pipe
 DEBUG: req_fd opened successfully

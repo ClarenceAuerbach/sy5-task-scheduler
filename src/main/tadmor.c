@@ -1,4 +1,3 @@
-#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -19,169 +18,90 @@ string_t *PIPES_DIRECTORY;
 
 /* Send a LIST request and display response */
 int handle_list(int req_fd, string_t *rep_pipe_path) {
-    int debug_fd = open("/home/clarence/Licence/sy5-task-scheduler/DEBUG", O_WRONLY | O_CREAT | O_APPEND, 0644);
-    
-    dprintf(debug_fd, "\n=== handle_list START ===\n");
-    
+  
     buffer_t *msg = init_buf();
     if (!msg) {
-        dprintf(debug_fd, "ERROR: init_buf failed\n");
-        close(debug_fd);
         return -1;
     }
 
-    dprintf(debug_fd, "Writing OP_LIST (0x%04X)\n", OP_LIST);
     if (write16(msg, OP_LIST) != 0) {
-        dprintf(debug_fd, "ERROR: write16 failed\n");
         free_buf(msg);
-        close(debug_fd);
         return -1;
     }
 
-    dprintf(debug_fd, "msg->length=%zu, msg->data=[", msg->length);
-    for (size_t i = 0; i < msg->length; i++) {
-        dprintf(debug_fd, "%02X ", msg->data[i]);
-    }
-    dprintf(debug_fd, "]\n");
 
-    dprintf(debug_fd, "Calling write_atomic_chunks to fd %d\n", req_fd);
     if (write_atomic_chunks(req_fd, msg->data, msg->length) != 0) {
-        dprintf(debug_fd, "ERROR: write_atomic_chunks failed, errno=%d\n", errno);
         free_buf(msg);
-        close(debug_fd);
         return -1;
     }
-    dprintf(debug_fd, "Request sent successfully\n");
     free_buf(msg);
 
-    dprintf(debug_fd, "Opening reply pipe: %s\n", rep_pipe_path->data);
     int rep_fd = open(rep_pipe_path->data, O_RDONLY);
     if (rep_fd < 0) {
-        dprintf(debug_fd, "ERROR: open reply pipe failed, errno=%d\n", errno);
         perror("open reply pipe");
-        close(debug_fd);
         return -1;
     }
-    dprintf(debug_fd, "Reply pipe opened, fd=%d\n", rep_fd);
     
     uint16_t anstype;
-    dprintf(debug_fd, "Calling read16 for anstype\n");
     int r = read16(rep_fd, &anstype);
-    dprintf(debug_fd, "read16 returned %d, anstype=0x%04X\n", r, anstype);
     
     if (r != 0) {
-        dprintf(debug_fd, "ERROR: read16 failed\n");
         fprintf(stderr, "Failed to read answer type\n");
         close(rep_fd);
-        close(debug_fd);
         return -1;
     }
     
     if (anstype != ANS_OK) {
-        dprintf(debug_fd, "ERROR: anstype != ANS_OK (got 0x%04X, expected 0x%04X)\n", anstype, ANS_OK);
         fprintf(stderr, "Error response from daemon\n");
         close(rep_fd);
-        close(debug_fd);
         return -1;
     }
-    dprintf(debug_fd, "anstype OK\n");
-    
     // Read NBTASKS
     uint32_t nbtasks;
-    dprintf(debug_fd, "Calling read32 for nbtasks\n");
     if (read32(rep_fd, &nbtasks) != 0) {
-        dprintf(debug_fd, "ERROR: read32 nbtasks failed\n");
         fprintf(stderr, "Failed to read nbtasks\n");
         close(rep_fd);
-        close(debug_fd);
         return -1;
     }
-    dprintf(debug_fd, "nbtasks=%u\n", nbtasks);
-    
     // Read and display each task
     for (uint32_t i = 0; i < nbtasks; i++) {
-        dprintf(debug_fd, "Reading task %u/%u\n", i+1, nbtasks);
         
         // Read TASKID
         uint64_t taskid;
-        dprintf(debug_fd, "  Reading taskid...\n");
         if (read64(rep_fd, &taskid) != 0){
-            dprintf(debug_fd, "  ERROR: read64 taskid failed\n");
             close(rep_fd);
-            close(debug_fd);
             return -1;
         }
-        dprintf(debug_fd, "  taskid=%lu\n", taskid);
 
         // Read TIMING
         uint64_t minutes;
         uint32_t hours;
         uint8_t days;
         
-        dprintf(debug_fd, "  Reading minutes...\n");
         if (read64(rep_fd, &minutes) != 0){
-            dprintf(debug_fd, "  ERROR: read64 minutes failed\n");
             close(rep_fd);
-            close(debug_fd);
             return -1;
         }
-        dprintf(debug_fd, "  minutes=0x%016lX\n", minutes);
         
-        dprintf(debug_fd, "  Reading hours...\n");
         if (read32(rep_fd, &hours) != 0){
-            dprintf(debug_fd, "  ERROR: read32 hours failed\n");
             close(rep_fd);
-            close(debug_fd);
             return -1;
         }
-        dprintf(debug_fd, "  hours=0x%08X\n", hours);
         
-        dprintf(debug_fd, "  Reading days...\n");
         unsigned char dbuf[1];
         if (read(rep_fd, dbuf, 1) != 1){
-            dprintf(debug_fd, "  ERROR: read days failed\n");
             close(rep_fd);
-            close(debug_fd);
             return -1;
         }
         days = dbuf[0];
-        dprintf(debug_fd, "  days=0x%02X\n", days);
         
         // Read COMMANDLINE
         string_t *cmdline = init_str();
         if (read_command(rep_fd, cmdline) != 0) {
-            dprintf(debug_fd, "  ERROR: read_command failed\n");
             free_str(cmdline);
             close(rep_fd);
-            close(debug_fd);
             return -1;
         }
-        dprintf(debug_fd, "  cmdline='%s'\n", cmdline->data);
-        size_t cmdlen = cmdline->length;    
-
-        if (!cmdline) {
-            dprintf(debug_fd, "  ERROR: malloc cmdline failed\n");
-            close(rep_fd);
-            close(debug_fd);
-            return -1;
-        }
-        
-        // Lire toute la commandline
-        dprintf(debug_fd, "  Reading cmdline (%ld bytes)...\n", cmdlen);
-        size_t total = 0;
-        while (total < cmdlen) {
-            ssize_t n = read(rep_fd, cmdline + total, cmdlen - total);
-            dprintf(debug_fd, "    read() returned %zd (total=%zu/%ld)\n", n, total + (n>0?n:0), cmdlen);
-            if (n <= 0) {
-                dprintf(debug_fd, "  ERROR: read cmdline failed at offset %zu\n", total);
-                free(cmdline);
-                close(rep_fd);
-                close(debug_fd);
-                return -1;
-            }
-            total += n;
-        }
-        dprintf(debug_fd, "  cmdline='%s'\n", cmdline->data);
         
         // Format and display
         char min_str[256], hrs_str[128], day_str[32];
@@ -195,17 +115,13 @@ int handle_list(int req_fd, string_t *rep_pipe_path) {
             bitmap_to_string(hours, 23, hrs_str, sizeof(hrs_str));
             bitmap_to_string(days, 6, day_str, sizeof(day_str));
         }
-        
-        dprintf(debug_fd, "  Formatted: %lu: %s %s %s %s\n", taskid, min_str, hrs_str, day_str, cmdline->data);
         printf("%lu: %s %s %s %s\n", taskid, min_str, hrs_str, day_str, cmdline->data);
         fflush(stdout);
 
-        free(cmdline);
+        free_str(cmdline);
     }
     
-    dprintf(debug_fd, "=== handle_list SUCCESS ===\n");
     close(rep_fd);
-    close(debug_fd);
     return 0;
 }
 
@@ -239,7 +155,6 @@ int handle_times_exitcodes(int req_fd, string_t *rep_pipe_path, uint64_t taskid)
         close(rep_fd);
         return -1;
     }
-
     if (anstype == ANS_ERROR) {
         uint16_t errcode;
         if (read16(rep_fd, &errcode) != 0) return -1;
@@ -249,7 +164,7 @@ int handle_times_exitcodes(int req_fd, string_t *rep_pipe_path, uint64_t taskid)
             fprintf(stderr, "Unknown error\n");
         }
         close(rep_fd);
-        return -1;
+        return 1;
     }
     
     // Read NBRUNS
@@ -354,7 +269,7 @@ int handle_output(int req_fd, string_t *rep_pipe_path, uint64_t taskid, int is_s
         }
 
         close(rep_fd);
-        return -1;
+        return 1;
     }
     
     // Read OUTPUT
@@ -467,13 +382,12 @@ int handle_terminate(int req_fd, string_t *rep_pipe_path) {
 }
 
 int main(int argc, char **argv) {
-    
-    int debug_fd = open("/home/clarence/Licence/sy5-task-scheduler/DEBUG", O_WRONLY | O_CREAT | O_APPEND, 0644);
-    
+    /*
     dprintf(debug_fd, "DEBUG: argc=%d\n", argc);
     for (int i = 0; i < argc; i++) {
         dprintf(debug_fd, "DEBUG: argv[%d]=%s\n", i, argv[i]);
     }
+    */
 
     PIPES_DIRECTORY = new_str("/tmp/");
     append(PIPES_DIRECTORY, getenv("USER"));
@@ -490,18 +404,13 @@ int main(int argc, char **argv) {
     string_t *rep_pipe_path = new_str(PIPES_DIRECTORY->data);
     append(rep_pipe_path, "/erraid-reply-pipe");
 
-    dprintf(debug_fd, "DEBUG: req_pipe_path=%s\n", req_pipe_path->data);
-    dprintf(debug_fd, "DEBUG: rep_pipe_path=%s\n", rep_pipe_path->data);
 
     int req_fd = open(req_pipe_path->data, O_WRONLY);
 
     if (req_fd < 0) {
         perror("open req_pipe");
-        dprintf(debug_fd, "DEBUG: Failed to open %s\n", req_pipe_path->data);
         return 1;
     }
-    
-    dprintf(debug_fd, "DEBUG: req_fd opened successfully\n");
     
     int opt;
     int ret = 0;

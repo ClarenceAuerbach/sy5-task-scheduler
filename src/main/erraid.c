@@ -58,7 +58,7 @@ int tube_timeout(int tube_fd, int timeout) {
         .fd = tube_fd,
         .events = POLLIN
     };
-    int ret = poll(&p, 1, 60000);
+    int ret = poll(&p, 1, timeout);
     
     printf("revents value : %d\n", p.revents);
     return ret;

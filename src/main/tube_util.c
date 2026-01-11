@@ -113,24 +113,19 @@ int read64(int fd, uint64_t *val) {
 
 // Lire une commande récursivement
 int read_command(int fd, string_t *result) {
-    // Lire le TYPE
     uint16_t type;
     if (read16(fd, &type) != 0) return -1;
     
-    if (type == 0x5349) {  // 'SI' - Simple command
-        // Lire ARGC
+    if (type == 0x5349) {  
         uint32_t argc;
         if (read32(fd, &argc) != 0) return -1;
         
-        // Lire chaque argument
         for (uint32_t i = 0; i < argc; i++) {
             if (i > 0) append(result, " ");
             
-            // Lire LENGTH
             uint32_t len;
             if (read32(fd, &len) != 0) return -1;
             
-            // Lire DATA
             char *arg = malloc(len + 1);
             if (!arg) return -1;
             
@@ -149,14 +144,12 @@ int read_command(int fd, string_t *result) {
             free(arg);
         }
         
-    } else if (type == 0x5351) {  // 'SQ' - Sequence
-        // Lire NBCMDS
+    } else if (type == 0x5351) {  
         uint32_t nbcmds;
         if (read32(fd, &nbcmds) != 0) return -1;
         
         append(result, "(");
         
-        // Lire chaque sous-commande récursivement
         for (uint32_t i = 0; i < nbcmds; i++) {
             if (i > 0) append(result, " ; ");
             
@@ -171,11 +164,7 @@ int read_command(int fd, string_t *result) {
         
         append(result, ")");
         
-    } else {
-        fprintf(stderr, "Unknown command type: 0x%04X\n", type);
-        return -1;
-    }
-    
+    } 
     return 0;
 }
 
@@ -267,6 +256,7 @@ int write_arguments(buffer_t *msg, int argc, char **argv) {
 }
 
 void bitmap_to_string(uint64_t bitmap, int max_val, char *buf, size_t bufsize) {
+    // Check if all bits are set
     int all_set = 1;
     for (int i = 0; i <= max_val; i++) {
         if (!((bitmap >> i) & 1)) {
@@ -274,21 +264,41 @@ void bitmap_to_string(uint64_t bitmap, int max_val, char *buf, size_t bufsize) {
             break;
         }
     }
-    
+
     if (all_set) {
         snprintf(buf, bufsize, "*");
         return;
     }
-    
+
     buf[0] = '\0';
     int first = 1;
-    for (int i = 0; i <= max_val; i++) {
-        if ((bitmap >> i) & 1) {
-            if (!first) strncat(buf, ",", bufsize - strlen(buf) - 1);
-            char num[16];
-            snprintf(num, sizeof(num), "%d", i);
-            strncat(buf, num, bufsize - strlen(buf) - 1);
-            first = 0;
+
+    for (int i = 0; i <= max_val; ) {
+        if (!((bitmap >> i) & 1)) {
+            i++;
+            continue;
         }
+
+        int start = i;
+        int end = i;
+
+        while (end + 1 <= max_val && ((bitmap >> (end + 1)) & 1)) {
+            end++;
+        }
+
+        if (!first)
+            strncat(buf, ",", bufsize - strlen(buf) - 1);
+
+        char tmp[32];
+        if (start == end) {
+            snprintf(tmp, sizeof(tmp), "%d", start);
+        } else {
+            snprintf(tmp, sizeof(tmp), "%d-%d", start, end);
+        }
+
+        strncat(buf, tmp, bufsize - strlen(buf) - 1);
+        first = 0;
+
+        i = end + 1;
     }
 }
