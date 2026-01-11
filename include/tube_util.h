@@ -127,6 +127,14 @@ int read32(int fd, uint32_t *val);
 int read64(int fd, uint64_t *val);
 
 /**
+ * Read a command from a file descriptor into a string_t
+ * @param fd file descriptor
+ * @param result destination string_t
+ * @return 0 on success, -1 on error
+ */
+int read_command(int fd, string_t *result);
+
+/**
  * Converts timing or bitmap to a readable string
  * @param bitmap th ebitmap in uint64_t
  * @param buf destination buffer for the string

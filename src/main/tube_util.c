@@ -111,6 +111,74 @@ int read64(int fd, uint64_t *val) {
     return 0;
 }
 
+// Lire une commande récursivement
+int read_command(int fd, string_t *result) {
+    // Lire le TYPE
+    uint16_t type;
+    if (read16(fd, &type) != 0) return -1;
+    
+    if (type == 0x5349) {  // 'SI' - Simple command
+        // Lire ARGC
+        uint32_t argc;
+        if (read32(fd, &argc) != 0) return -1;
+        
+        // Lire chaque argument
+        for (uint32_t i = 0; i < argc; i++) {
+            if (i > 0) append(result, " ");
+            
+            // Lire LENGTH
+            uint32_t len;
+            if (read32(fd, &len) != 0) return -1;
+            
+            // Lire DATA
+            char *arg = malloc(len + 1);
+            if (!arg) return -1;
+            
+            size_t total = 0;
+            while (total < len) {
+                ssize_t n = read(fd, arg + total, len - total);
+                if (n <= 0) {
+                    free(arg);
+                    return -1;
+                }
+                total += n;
+            }
+            arg[len] = '\0';
+            
+            append(result, arg);
+            free(arg);
+        }
+        
+    } else if (type == 0x5351) {  // 'SQ' - Sequence
+        // Lire NBCMDS
+        uint32_t nbcmds;
+        if (read32(fd, &nbcmds) != 0) return -1;
+        
+        append(result, "(");
+        
+        // Lire chaque sous-commande récursivement
+        for (uint32_t i = 0; i < nbcmds; i++) {
+            if (i > 0) append(result, " ; ");
+            
+            string_t *subcmd = init_str();
+            if (read_command(fd, subcmd) != 0) {
+                free_str(subcmd);
+                return -1;
+            }
+            append(result, subcmd->data);
+            free_str(subcmd);
+        }
+        
+        append(result, ")");
+        
+    } else {
+        fprintf(stderr, "Unknown command type: 0x%04X\n", type);
+        return -1;
+    }
+    
+    return 0;
+}
+
 uint64_t parse_timing_field(const char *str, int max_value) {
     if (!str) return 0;
     

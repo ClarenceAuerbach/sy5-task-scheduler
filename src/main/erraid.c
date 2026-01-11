@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -57,7 +58,9 @@ int tube_timeout(int tube_fd, int timeout) {
         .fd = tube_fd,
         .events = POLLIN
     };
-    int ret = poll(&p, 1, timeout);
+    int ret = poll(&p, 1, 60000);
+    
+    printf("revents value : %d\n", p.revents);
     return ret;
 }
 
@@ -252,7 +255,7 @@ int run(char *tasks_path, task_array_t *task_array, int *timeout){
 
 end:
     if (found_task) *timeout = (min_timing-now)*1000;
-    else *timeout = -1;
+    else *timeout = 86400000; // one day in ms
 cleanup:
     if (fd_out >= 0) close(fd_out);
     if (fd_err >= 0) close(fd_err);
