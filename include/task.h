@@ -16,10 +16,10 @@ typedef struct {
 } arguments_t;
 
 /* type:
- * 'SI' if simple task
- * 'SQ' if sequential
- * 'PL' if pipeline
- * 'IF' if conditional
+ * "SI" if simple task
+ * "SQ" if sequential
+ * "PL" if pipeline
+ * "IF" if conditional
  *
  * If simple type, args is defined, nbcmds and cmd are not.
  * If any other (complex) type, args will not be defined, nbcmds and cmd will be.
@@ -49,11 +49,11 @@ typedef struct {
 
 void print_task(task_t task);
 
-int extract_all(task_array_t *task_arr, char *dir_path);
+int extract_all(task_array_t *task_arr, string_t *dir_path);
 
-int extract_task(task_t *dest_task, char *dir_path);
+int extract_task(task_t *dest_task, string_t *dir_path);
 
-int extract_cmd(command_t *dest_cmd, char *cmd_path);
+int extract_cmd(command_t *dest_cmd, string_t *cmd_path);
 
 /* Free helpers */
 void free_task_arr(task_array_t *task_arr);

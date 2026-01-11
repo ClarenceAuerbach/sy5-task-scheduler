@@ -9,141 +9,122 @@
 #include <limits.h>
 #include <endian.h>
 
+#include "tube_util.h"
 #include "task.h"
 #include "erraid_util.h"
 
-/* Command directory to struct command_t, recursive */
-int extract_cmd(command_t *dest_cmd, char *dir_path) {
-    DIR *dir = opendir(dir_path);
-    if (dir == NULL) {
-        perror("cannot open dir : cmd");
-        return -1;
+int extract_cmd(command_t *dest_cmd, string_t *dir_path) {
+
+    memset(dest_cmd, 0, sizeof(*dest_cmd));
+
+    DIR *dir = opendir(dir_path->data);
+    if (!dir) {
+        perror("opendir cmd");
+        goto error;
     }
+    
+    uint32_t nbcmds = count_dir_size(dir_path->data, 1);
 
     struct dirent *entry;
-    int i = 0;
-    char path[PATH_MAX];
     while ((entry = readdir(dir))) {
-        if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
+        if (!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..")) continue;
 
-        /* Build a safe path into local buffer instead of mutating dir_path */
-        int n = snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name);
-        if (n < 0 || n >= (int)sizeof(path)) {
-            /* truncated — skip this entry */
-            continue;
-        }
+        size_t base_length = dir_path->length;
 
-        if (!strcmp(entry->d_name,"argv")) {
-            int fd = open(path, O_RDONLY);
-            if (fd < 0) {
-                closedir(dir);
-                return -1;
-            }
-            uint32_t arc = 0;
-            ssize_t read_val = read(fd, &arc, sizeof(arc));
-            if (read_val != (ssize_t)sizeof(arc)) {
+        append(dir_path, "/");
+        append(dir_path, entry->d_name);
+
+        struct stat st;
+        if (stat(dir_path->data, &st) == -1)
+            goto error_restore;
+
+        /* ----- type ----- */
+        if (!strcmp(entry->d_name, "type")) {
+            int fd = open(dir_path->data, O_RDONLY);
+            if (fd < 0) goto error_restore;
+
+            if (read(fd, dest_cmd->type, 2) != 2) {
                 close(fd);
-                closedir(dir);
-                return -1;
-            }
-            arc = be32toh(arc);
-
-            dest_cmd->args.argc = arc;
-            dest_cmd->args.argv = calloc(arc, sizeof(string_t));
-            if (arc > 0 && dest_cmd->args.argv == NULL) {
-                close(fd);
-                closedir(dir);
-                return -1;
-            }
-            string_t *argv = dest_cmd->args.argv;
-
-            for(uint32_t i = 0; i < arc; i++){
-                uint32_t len_be = 0;
-                if (read(fd, &len_be, sizeof(len_be)) != (ssize_t)sizeof(len_be)) {
-                    /* clean partial allocation */
-                    for (uint32_t j = 0; j < i; j++) free(argv[j].data);
-                    free(argv);
-                    close(fd);
-                    closedir(dir);
-                    return -1;
-                }
-                uint32_t str_len = be32toh(len_be);
-                argv[i].length = str_len;
-                argv[i].data = malloc(str_len + 1); /* +1 for \0 */
-                if (!argv[i].data) {
-                    for (uint32_t j = 0; j < i; j++) free(argv[j].data);
-                    free(argv);
-                    close(fd);
-                    closedir(dir);
-                    return -1;
-                }
-
-                if (read(fd, argv[i].data, str_len) != (ssize_t)str_len) {
-                    for (uint32_t j = 0; j <= i; j++) free(argv[j].data);
-                    free(argv);
-                    close(fd);
-                    closedir(dir);
-                    return -1;
-                }
-                argv[i].data[str_len] = '\0';
-            }
-
-            close(fd);
-        }
-
-        if (!strcmp(entry->d_name,"type")) {
-            int fd = open(path, O_RDONLY);
-            if (fd < 0) {
-                closedir(dir);
-                return -1;
-            }
-            
-            if (read(fd, dest_cmd->type, 2*sizeof(char)) != 2) {
-                close(fd);
-                closedir(dir);
-                return -1;
+                goto error_restore;
             }
             dest_cmd->type[2] = '\0';
             close(fd);
+            goto restore;
         }
 
-        struct stat st ;
-        if (stat(path, &st) == -1) {
-            /* can't stat — skip */
-            continue;
-        }
-        if (S_ISDIR(st.st_mode)) {
-            /* First pass we instantiate the necessary amount of memory */
-            if(!i){
-                int nb = count_dir_size(dir_path, 1);
-                dest_cmd->cmd = calloc(nb, sizeof(command_t));
-            } 
+        /* ----- argv ----- */
+        if (!strcmp(entry->d_name, "argv")) {
+            int fd = open(dir_path->data, O_RDONLY);
+            if (fd < 0) goto error_restore;
 
-            /* We copy the current path because it will be modified in the recursion,
-            give the copy 64 more bytes for the size of the sub-dir file names (could be less)*/
-            /* pass a duplicated path for recursion */
-            char *dir_path_copy = malloc(strlen(path) + 1);
-            if (!dir_path_copy) {
-                closedir(dir);
-                return -1;
+            if(read32(fd, &dest_cmd->args.argc) == -1) {
+                close(fd);
+                goto error_restore;
             }
-            strcpy(dir_path_copy, path);
-            int idx = atoi(entry->d_name);
+            uint32_t argc = dest_cmd->args.argc;
+            dest_cmd->args.argv = calloc(argc, sizeof(string_t));
+            if (argc && !dest_cmd->args.argv)
+                goto error_restore;
 
-            extract_cmd((dest_cmd->cmd) + idx , dir_path_copy);
-            free(dir_path_copy);
+            for (uint32_t i = 0; i < argc; i++) {
+                string_t *arg = &dest_cmd->args.argv[i];
 
-            i ++;
+                if (read32(fd, &arg->length) == -1)
+                    goto error_restore;
+
+                arg->data = malloc(arg->length + 1);
+
+                if (!arg->data)
+                    goto error_restore;
+
+                if (read(fd, arg->data, arg->length) != arg->length)
+                    goto error_restore;
+
+                arg->data[arg->length] = '\0';
+            }
+
+            close(fd);
+            goto restore;
         }
+
+        /* ---------- subcommand directory ---------- */
+        if (S_ISDIR(st.st_mode)) {
+            int subcommand_id = atoi(entry->d_name);
+            if (subcommand_id < 0)
+                goto error_restore;
+
+            if(!dest_cmd->cmd){ // Haven't seen a subcommand yet
+                dest_cmd->nbcmds = nbcmds;
+                dest_cmd->cmd = calloc(dest_cmd->nbcmds, sizeof(command_t));
+            }
+
+
+            if ((uint32_t)subcommand_id >= dest_cmd->nbcmds)
+                goto error_restore;
+            if (extract_cmd(&dest_cmd->cmd[subcommand_id], dir_path) != 0)
+                goto error_restore;
+        }
+
+restore:
+        trunc_str_to(dir_path, base_length);
+        continue;
+
+error_restore:
+        trunc_str_to(dir_path, base_length);
+        goto error;
     }
-    dest_cmd->nbcmds = (uint32_t) i;
+
     closedir(dir);
     return 0;
+
+error:
+    if (dir) closedir(dir);
+    return -1;
 }
 
 /* Task directory to struct task_t, calls extract_cmd */
-int extract_task(task_t *dest_task, char *dir_path) {
-    DIR *dir = opendir(dir_path);
+int extract_task(task_t *dest_task, string_t *dir_path) {
+    DIR *dir = opendir(dir_path->data);
     if (dir == NULL) {
         perror("cannot open dir");
         return -1;
@@ -151,15 +132,15 @@ int extract_task(task_t *dest_task, char *dir_path) {
 
     int ret = 0;
     struct dirent *entry;
-    char path[PATH_MAX];
     while ((entry = readdir(dir))) {
+        uint32_t base_length = dir_path->length;
         if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
-
-        int n = snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name);
-        if (n < 0 || n >= (int)sizeof(path)) continue;
+        
+        append(dir_path, "/");
+        append(dir_path, entry->d_name);
 
         if (!strcmp(entry->d_name,"timing")) {
-            int fd = open(path, O_RDONLY);
+            int fd = open(dir_path->data, O_RDONLY);
             if (fd < 0) {
                 closedir(dir);
                 return -1;
@@ -180,32 +161,19 @@ int extract_task(task_t *dest_task, char *dir_path) {
 
             *min = be64toh(*min);
             *hours = be32toh(*hours);
-            
             close(fd);
         }
 
         if (!strcmp(entry->d_name,"cmd")) {
-            /* We copy the current path because it will be modified in the recursion , 
-            give the copy 64 more bytes for the size of the sub-dir file names (could be less)*/
-            char *dir_path_copy = malloc(strlen(path) + 1);
-            if (!dir_path_copy) {
-                closedir(dir);
-                return -1;
-            }
-            strcpy(dir_path_copy, path);
-
             dest_task->command = malloc(sizeof(command_t));
             if (!dest_task->command) {
-                free(dir_path_copy);
                 closedir(dir);
                 return -1;
             }
 
-            ret += extract_cmd(dest_task->command, dir_path_copy);
-
-            free(dir_path_copy);
+            ret += extract_cmd(dest_task->command, dir_path);
         }
-
+        trunc_str_to(dir_path, base_length);
     }
 
     closedir(dir);
@@ -213,10 +181,10 @@ int extract_task(task_t *dest_task, char *dir_path) {
 }
 
 /* Extracts all the tasks in a dir_path directory, calls extract_task */
-int extract_all(task_array_t *task_arr, char *dir_path) {
+int extract_all(task_array_t *task_arr, string_t *dir_path) {
     task_t **tasks = task_arr->tasks;
     
-    DIR *dir = opendir(dir_path);
+    DIR *dir = opendir(dir_path->data);
     if (dir == NULL) {
         perror("cannot open tasks");
         return -1;
@@ -225,34 +193,23 @@ int extract_all(task_array_t *task_arr, char *dir_path) {
     struct dirent *entry;
     int ret = 0;
     int i = 0;
-    char path[PATH_MAX];
     while ((entry = readdir(dir))) {
-        if( !strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
-
-        int n = snprintf(path, sizeof(path), "%s/%s", dir_path, entry->d_name);
-        if (n < 0 || n >= (int)sizeof(path)) continue;
-
-        char * dir_path_copy = malloc(strlen(path) + 1);
-        if (!dir_path_copy) {
-            free(dir_path_copy);
-            closedir(dir);
-            return -1;
-        }
-        strcpy(dir_path_copy, path);
+        if(!strcmp(entry->d_name , ".") || !strcmp(entry->d_name , "..")) continue;
+        uint32_t base_length = dir_path->length;
+        append(dir_path, "/");
+        append(dir_path, entry->d_name);
 
         tasks[i] = malloc(sizeof(task_t));
         if (!tasks[i]) {
-            free(dir_path_copy);
+            free(dir_path);
             free(tasks[i]);
             closedir(dir);
             return -1;
         }
         tasks[i]->id = atoi(entry->d_name);
-        ret += extract_task( tasks[i] , dir_path_copy);
-
-        free(dir_path_copy);
-
+        ret += extract_task(tasks[i] , dir_path);
         i++;
+        trunc_str_to(dir_path, base_length);
     }
     closedir(dir);
     return ret;

@@ -114,7 +114,7 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
 
 int exec_command(command_t *com, int fd_out, int fd_err); // Mutually recursive
 
-/* Execute a simple command of type SQ (calls exec_command) */
+/* Executes a sequential command (type SQ) */
 int exec_sequential_command(command_t *com, int fd_out, int fd_err){
     int ret = 0;
     for (unsigned int i=0; i < com->nbcmds; i++){
@@ -123,17 +123,107 @@ int exec_sequential_command(command_t *com, int fd_out, int fd_err){
     return ret;
 }
 
+/* Executes a conditional command (type IF)
+ * If there are 3 or more subcommands, [cmd1, cmd2, cmd3, ...]
+ * Executes (if cmd1; then cmd2; else cmd3; fi)
+ * Otherwise, executes (if cmd1; then cmd2; fi)
+ */
+int exec_conditional_command(command_t *com, int fd_out, int fd_err) {
+    int ret = 0;
+    int cond;
+    /* conditional => com->nbcmds == 3
+     * cmd = {if, then, else}
+     */
+    cond = exec_command(com->cmd, fd_out, fd_err);
+    if (cond == 0) { // Condition command succeeded
+        ret = exec_command(com->cmd + 1, fd_out, fd_err);
+    } else if (com->nbcmds >= 3) {
+        ret = exec_command(com->cmd + 2, fd_out, fd_err);
+    }
+    return ret;
+}
+
+/* Executes a pipeline command (type PL) */
+int exec_pipeline_command(command_t *com, int fd_out, int fd_err) {
+    int n = com->nbcmds;
+    int pipes[2 * (n - 1)]; // space for n-1 pipes
+    pid_t pids[n];
+
+    // Pipe creation
+    for (int i = 0; i < n - 1; i++) {
+        if (pipe(pipes + 2*i) < 0) {
+            perror("pipe");
+        }
+    }
+
+    for (int i = 0; i < n; i++) {
+        pid_t pid = fork();
+        if (pid < 0) {
+            perror("fork");
+        }
+        if (pid == 0) {
+            /* Child */
+
+            /* stdin */
+            if (i > 0) {
+                dup2(pipes[2*(i-1)], STDIN_FILENO);
+            }
+
+            /* stdout */
+            if (i < n - 1) {
+                dup2(pipes[2*i + 1], STDOUT_FILENO);
+            } else {
+                dup2(fd_out, STDOUT_FILENO);
+            }
+
+            /* stderr */
+            dup2(fd_err, STDERR_FILENO);
+
+            /* Close all pipe fds */
+            for (int j = 0; j < 2*(n-1); j++) {
+                close(pipes[j]);
+            }
+
+            /* Execute command */
+            int ret = exec_command(&com->cmd[i], STDOUT_FILENO, STDERR_FILENO);
+            _exit(ret);
+        }
+
+        pids[i] = pid;
+    }
+
+    /* Parent: close all pipes */
+    for (int i = 0; i < 2*(n-1); i++) {
+        close(pipes[i]);
+    }
+
+    /* Wait for children */
+    int status;
+    int ret = 0;
+    for (int i = 0; i < n; i++) {
+        waitpid(pids[i], &status, 0);
+        // Final return value: last child
+        if (i == n - 1) {
+            if (WIFEXITED(status)) {
+                ret = WEXITSTATUS(status);
+            } else {
+                ret = 1;
+            }
+        }
+    }
+    return ret;
+}
 /* Calls the right exec_type_command */
 int exec_command(command_t *com, int fd_out, int fd_err){
     int ret = 0;
-    if (!strcmp(com->type, "SQ")){
-        // DEBUG
-        // printf("\033[35mSequential task started\033[0m\n");
+    if (!strcmp(com->type, "SQ")) {
         ret = exec_sequential_command(com, fd_out, fd_err);
-    } else if (!strcmp(com->type, "SI")){
-        //  DEBUG
-        // printf("\033[34mSimple task started\033[0m\n");
+    } else if (!strcmp(com->type, "SI")) {
         ret = exec_simple_command(com, fd_out, fd_err);
+    } else if (!strcmp(com->type, "IF")) {
+        ret = exec_conditional_command(com, fd_out, fd_err);
+    } else if (!strcmp(com->type, "PL")) {
+        ret = exec_pipeline_command(com, fd_out, fd_err);
     }
     // DEBUG
     // printf("\033[33mCommand type: %s\033[0m\n", com->type);
@@ -303,7 +393,7 @@ int init_task_array(task_array_t **task_arrayp, string_t *tasks_path) {
         task_array->tasks = malloc(task_count * sizeof(task_t *));
         if (!task_array->tasks) return -1;
 
-        if (extract_all(task_array, tasks_path->data)) {
+        if (extract_all(task_array, tasks_path)) {
             perror("Extract_all failed");
             return -1;
         }
@@ -465,7 +555,7 @@ int main(int argc, char *argv[]) {
                         task_array->tasks = malloc(task_count * sizeof(task_t *));
                         if (!task_array->tasks) goto cleanup;  
                     }
-                    if (extract_all(task_array, tasks_path->data)) {
+                    if (extract_all(task_array, tasks_path)) {
                         perror("Extract_all failed");
                         goto cleanup;
                     }

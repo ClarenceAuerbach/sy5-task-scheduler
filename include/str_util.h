@@ -9,8 +9,8 @@
 // Capacity: bytes allocated for this string
 typedef struct {
     char *data;
-    size_t length;
-    size_t capacity;
+    uint32_t length;
+    uint32_t capacity;
 } string_t;
 
 // Data: heap allocated data
@@ -18,8 +18,8 @@ typedef struct {
 // Capacity: bytes allocated for this string
 typedef struct {
     uint8_t *data;
-    size_t length;
-    size_t capacity;
+    uint32_t length;
+    uint32_t capacity;
 } buffer_t;
 
 // Builds an empty string
@@ -45,19 +45,19 @@ buffer_t *copy_buf(buffer_t *buf);
 // Returns NULL on error
 int append(string_t *dest, const char *s);
 
-int appendn(buffer_t *dest, const void *val, size_t byte_count);
+int appendn(buffer_t *dest, const void *val, uint32_t byte_count);
 
 // Removes n characters from the string
-void trunc_str_by(string_t *str, size_t n);
+void trunc_str_by(string_t *str, uint32_t n);
 
 // Removes n bytes from the string
-void trunc_buf_by(buffer_t *buf, size_t n);
+void trunc_buf_by(buffer_t *buf, uint32_t n);
 
 // Removes characters such that the length of the string is n
-void trunc_str_to(string_t *str, size_t n);
+void trunc_str_to(string_t *str, uint32_t n);
 
 // Removes bytes such that the length of the buffer is n
-void trunc_buf_to(buffer_t *buf, size_t n);
+void trunc_buf_to(buffer_t *buf, uint32_t n);
 
 // Replaces the string in str with s
 int set_str(string_t *str, char *s);
