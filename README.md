@@ -1,6 +1,4 @@
-# SY5-Task-Scheduler
-
-## Cranberry
+# Cran SY5-Task-Scheduler
 
 ## Description
 A daemon-client pair allowing a user to automate the **periodic execution of tasks** at specified times, similar to the [cron](https://en.wikipedia.org/wiki/Cron) utility.
@@ -16,6 +14,14 @@ If you don’t already have it, install [GCC](https://gcc.gnu.org/) and then com
 ```bash
 make
 ```
+First run the deamon process with :
+```bash
+./erraid [-F] [-R RUN_DIR] [-P PIPES_DIR]
+```
+Then use tadmor freely :
+```bash
+./tadmor [-p PATH] [-l|-q|-r TASKID|-x TASKID|-o TASKID|-e TASKID|-c [-m minutes][-h hours][-d days] cmd arg1...argn]
+```
 
 To remove the executables:
 ```bash
@@ -23,98 +29,87 @@ make distclean
 ```
 
 ## Usage
-Tadmor **will** provide the following options:
+Tadmor provides the following options:
+
+## Task creation
+
+- `-c [-m MINUTES] [-H HOURS] [-d DAYSOFWEEK] CMD [ARG_1] ... [ARG_N]`  
+  Creation of a simple task
+
+- `-s [-m MINUTES] [-H HOURS] [-d DAYSOFWEEK] TASKID_1 ... TASKID_N`  
+  Sequential combination of the tasks with identifiers `TASKID_1` to `TASKID_N`;  
+  the command to be executed is `( CMD_1 ; ... ; CMD_N )`
+
+- `-p [-m MINUTES] [-H HOURS] [-d DAYSOFWEEK] TASKID_1 ... TASKID_N`  
+  Pipeline combination of the tasks with identifiers `TASKID_1` to `TASKID_N`;  
+  the command to be executed is `( CMD_1 | ... | CMD_N )`
+
+- `-i [-m MINUTES] [-H HOURS] [-d DAYSOFWEEK] TASKID_1 TASKID_2 [TASKID_3]`  
+  Conditional combination of the tasks with identifiers `TASKID_1`, `TASKID_2`,  
+  and optionally `TASKID_3`;  
+  the command to be executed is  
+  `( if CMD_1 ; then CMD_2 ; else CMD_3 ; fi )`
+
+- `-n`  
+  Used in combination with the previous options, defines a task  
+  without an execution schedule (therefore it will never be executed),  
+  and is intended to be combined with other tasks to create a complex command
+
+## Task deletion
+
+- `-r TASKID`  
+  Deletion of the task with identifier `TASKID`
 
 ---
 
-### Task creation/deletion
+# Server Data Consultation
 
-```
--c [-m MINUTES] [-H HOURS] [-d DAYSOFWEEK] CMD [ARG_1] ... [ARG_N]
-```
+- `-l`  
+  List of tasks with their identifiers
 
-: create a simple task
+- `-x TASKID`  
+  Dated list of return values from the executions of the task  
+  with identifier `TASKID`
 
-```
--s [-m MINUTES] [-H HOURS] [-d DAYSOFWEEK] TASKID_1 ... TASKID_N
-```
+- `-o TASKID`  
+  Standard output of the last complete execution of the task  
+  with identifier `TASKID`
 
-: sequential combination of the tasks identified by `TASKID_1` to `TASKID_N`;
-the command to execute is `(CMD_1 ; ... ; CMD_N)`
-
-```
--n
-```
-
-: used in combination with the previous options, defines a task **without an execution schedule** (i.e., it will never be executed on its own, and is intended to be combined with other tasks to form a complex command)
-
-```
--r TASKID
-```
-
-: delete the task identified by `TASKID`
+- `-e TASKID`  
+  Standard error output of the last complete execution of the task  
+  with identifier `TASKID`
 
 ---
 
-### Server data consultation
+# Miscellaneous
 
-```
--l
-```
+- `-P PIPES_DIR`  
+  Defines the directory containing the communication pipes with the daemon  
+  (default: `/tmp/$USER/erraid/pipes`)
 
-: list all tasks
-
-```
--x TASKID
-```
-
-: display the dated list of return values from the executions of the task identified by `TASKID`
-
-```
--o TASKID
-```
-
-: show the standard output of the last completed execution of the task identified by `TASKID`
-
-```
--e TASKID
-```
-
-: show the standard error output of the last completed execution of the task identified by `TASKID`
-
----
-
-### Miscellaneous
-
-```
--p PIPES_DIR
-```
-
-: specify the directory containing the communication pipes with the daemon
-(default: `/tmp/$USER/erraid/pipes`)
-
-```
--q
-```
-
-: stop the daemon
+- `-q`  
+  Stop the daemon
 
 ## Roadmap
-jalon-1 :
+  
+1st milestone:  
+Task array initialization   
+Task task executions  
+Next execution times calculation  
+  
+2nd milestone:  
+Erraid correction for tests  
+Tube implementation  
+Request and response for consultation  
 
-Git repository exists
+3rd milestone:  
+Redisigning architecture for cleaner and safer code    
+Client request writing correction for tests  
+Server response correction for tests  
+Create and remove options implementation  
+  
+End of the Project !
 
-AUTHORS.md file is present
-
-Successful compilation at the repository root using make
-
-Interpretation of a provided directory structure defining the tasks to execute
-
-Execution of simple tasks at scheduled times
-
-Execution of task sequences at scheduled times
-
-Log file updates (return values and standard outputs)
 ## Authors and acknowledgment
 Thanks to all contributors.
 

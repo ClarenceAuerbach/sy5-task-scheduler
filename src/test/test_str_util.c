@@ -5,15 +5,30 @@
 #include "str_util.h"
 
 int main(void) {
-    char s1[] = "Hello ";
-    char *s2 = malloc(sizeof("World") + 1);
-    s2 = "World";
-    char *s3 = "!";
+    char *s1 = "Hello";
+    char *s2 = " ";
+    char *s3 = "World";
+    char *s4 = "!";
 
-    char *strings[] = {s1, s2, s3};
-    char *res1 = concat_n(3, strings);
-    assert(!strcmp(res1, "Hello World!"));
-    char *res2 = concat(s1, s2);
-    assert(!strcmp(res2, "Hello World"));
-    return 0;
+    string_t *str = new_str(s1);
+    assert(!strcmp(str->data, "Hello"));
+    assert(str->length == 5);
+    assert(str->capacity == 6);
+
+    append(str, s2);
+    append(str, s3);
+    append(str, s4);
+    assert(!strcmp(str->data, "Hello World!"));
+    assert(str->length == 12);
+    assert(str->capacity >= 13);
+
+    trunc_str_by(str, 1);
+    assert(!strcmp(str->data, "Hello World"));
+    assert(str->length == 11);
+    assert(str->capacity >= 13);
+
+    trunc_str_to(str, 5);
+    assert(!strcmp(str->data, "Hello"));
+    assert(str->length == 5);
+    assert(str->capacity >= 13);
 }
