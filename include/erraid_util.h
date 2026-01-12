@@ -15,4 +15,6 @@ void print_task_ids(int argc, task_t * task[]);
 
 int count_dir_size(char *dir_path, int only_count_dir);
 
+void erraid_move();
+
 #endif

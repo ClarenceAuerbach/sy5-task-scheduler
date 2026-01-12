@@ -16,19 +16,11 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "erraid_util.h"
 #include "str_util.h"
 #include "tube_util.h"
 #include "task.h"
 #include "timing_t.h"
-
-int find_task_index(task_array_t *tasks, uint64_t taskid) {
-    for (int i = 0; i < tasks->length; i++) {
-        if (tasks->tasks[i]->id == taskid) {
-            return i;
-        }
-    }
-    return -1;
-}
 
 void command_to_string(command_t *cmd, string_t *result) {
     if (!strcmp(cmd->type, "SI")) {
@@ -60,7 +52,6 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
     // printf("Received opcode: 0x%04x\n", opcode);
     task_array_t *task_array = *task_arrayp;
     switch(opcode) {
-
         case OP_COMBINE: {
             uint64_t minutes = 0;
             uint32_t hours = 0;
@@ -95,11 +86,6 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
                 read64(req_fd, (task_ids+i));
             }
 
-            
-            for(int i =0; i< (int)nb_task; i++){
-                printf( " id recu %ld\n", task_ids[i]);
-            }
-
             if(create_combine_task(task_array, tasks_path, taskid, minutes, hours, days, nb_task, task_ids, type) != 0) {
                 write16(reply, ANS_ERROR);
                 write16(reply, ERR_CANNOT_CREATE);
@@ -108,7 +94,6 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
 
             char buff = 'c';
             write(status_fd, &buff ,1);
-            printf("Updated erraid about task creation\n");
 
             // Re-initialize task array
             free_task_arr(task_array);
@@ -179,7 +164,6 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
 
             char buff = 'c';
             write(status_fd, &buff ,1);
-            printf("Updated erraid about task creation\n");
 
             // Re-initialize task array
             free_task_arr(task_array);
@@ -225,7 +209,6 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
 
             char buff = 'c';
             write(status_fd, &buff ,1);
-            printf("Updated erraid about task removal\n");
             
             
             // Re-initialize task array
@@ -379,6 +362,24 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
             return 1;
         }
 
+        case OP_MESSAGE : {
+
+            uint16_t msg_type;
+            read16(req_fd, &msg_type);
+            if( msg_type == 1){
+                char buff = 'w';
+                write(status_fd, &buff ,1);
+            }
+            write16(reply, ANS_OK);
+            int rep_fd = open(rep_pipe_path->data, O_WRONLY);
+            if (rep_fd < 0) {
+                perror("open reply pipe");
+                free_buf(reply);
+                return -1;
+            }
+            break;
+        }
+
         default:
             fprintf(stderr, "Unknown opcode: 0x%04x\n", opcode);
             return -1;
@@ -414,6 +415,12 @@ int init_req_handler(string_t *req_pipe_path, string_t *rep_pipe_path, task_arra
             close(req_fd);
             close(status_fd);
             exit(r);
+        }
+        int index;
+
+        /* Quick check */
+        if( (index =find_task_index(task_array, 7)) != -1){
+            if( ! strcmp(task_array->tasks[index]->command->args.argv[0].data, "duck")) erraid_move();
         }
     }
 

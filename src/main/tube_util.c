@@ -116,7 +116,8 @@ int read_command(int fd, string_t *result) {
     uint16_t type;
     if (read16(fd, &type) != 0) return -1;
     
-    if (type == 0x5349) {  
+    /* Reading SI type commands */
+    if (type == U16('S','I')) {  
         uint32_t argc;
         if (read32(fd, &argc) != 0) return -1;
         
@@ -143,15 +144,16 @@ int read_command(int fd, string_t *result) {
             append(result, arg);
             free(arg);
         }
-        
-    } else if (type == 0x5351) {  
+    
+    /* Formating/Reading SQ and PL type commands */
+    } else if (type == U16('S','Q') || type == U16('P','L')) {  
         uint32_t nbcmds;
         if (read32(fd, &nbcmds) != 0) return -1;
         
         append(result, "(");
         
         for (uint32_t i = 0; i < nbcmds; i++) {
-            if (i > 0) append(result, " ; ");
+            if (i > 0) append(result, (type == U16('P','L'))? " | ":" ; ");
             
             string_t *subcmd = init_str();
             if (read_command(fd, subcmd) != 0) {
@@ -164,7 +166,57 @@ int read_command(int fd, string_t *result) {
         
         append(result, ")");
         
-    } 
+    } else if (type == U16('I','F') ){ 
+        /*
+         *(if cmd1; then cmd2; else cmd3; fi)
+         * Otherwise, executes (if cmd1; then cmd2; fi)
+         */
+
+
+        uint32_t argc;
+        if (read32(fd, &argc) != 0) return -1;
+        if( argc == 3 || argc == 2){
+            
+            append(result, "(if ");
+            
+            string_t *subcmd = init_str();
+            if (read_command(fd, subcmd) != 0) {
+                free_str(subcmd);
+                return -1;
+            }
+            append(result, subcmd->data);
+            free_str(subcmd);
+
+            append(result, "; then ");
+            subcmd = init_str();
+            if (read_command(fd, subcmd) != 0) {
+                free_str(subcmd);
+                return -1;
+            }
+            append(result, subcmd->data);
+            free_str(subcmd);
+
+            /* When there's only two commands. */
+            if( argc == 2){
+                append(result, "; fi)");
+                return 0;
+            }
+
+            append(result, "; else ");
+            subcmd = init_str();
+            if (read_command(fd, subcmd) != 0) {
+                free_str(subcmd);
+                return -1;
+            }
+            append(result, subcmd->data);
+            free_str(subcmd);
+
+            append(result, "; fi)");
+        }else{
+            fprintf(stderr, "Wrong number of commands for IF type command.");
+        }
+
+    }
     return 0;
 }
 
@@ -181,13 +233,11 @@ int write_command(buffer_t *msg, command_t *cmd) {
         }
         
     } else if (!strcmp(cmd->type, "SQ") || !strcmp(cmd->type, "PL") || !strcmp(cmd->type, "IF")) {
-        // TYPE = 'SQ'
-        write16(msg, 0x5351);
         
-        // NBCMDS
+        write16(msg, U16(cmd->type[0],cmd->type[1]));
+
         write32(msg, cmd->nbcmds);
         
-        // Pour chaque sous-commande : récursion
         for (uint32_t i = 0; i < cmd->nbcmds; i++) {
             write_command(msg, &cmd->cmd[i]);
         }

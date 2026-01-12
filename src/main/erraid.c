@@ -22,7 +22,6 @@
 #include "erraid_req.h"
 #include "task.h"
 #include "timing_t.h"
-#include "erraid_util.h"
 
 string_t *RUN_DIRECTORY;
 string_t *PIPES_DIRECTORY;
@@ -440,7 +439,7 @@ int main(int argc, char *argv[]) {
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
     
-    puts("");
+    puts("Welcome !\nEnjoy Cran™ the task-scheduler.\n⊹ ࣪ ﹏𓊝﹏𓂁﹏⊹ ࣪ ˖");
     /* ============================================== */
     /* ========== DO NOT CHANGE THE ABOVE =========== */
 
@@ -499,8 +498,6 @@ int main(int argc, char *argv[]) {
             continue;
         }
         
-        printf("Time until next task execution: %ds\n", timeout/1000);
-        
         status = tube_timeout(pipes_fd[0], timeout);
         if (status < 0) {
             perror("Error with poll");
@@ -520,15 +517,18 @@ int main(int argc, char *argv[]) {
             }
             switch(buff) {
                 case 'q':
-                    printf("Erraid stop requested\n");
                     stop_requested = 1;
                     break;
                 case 'c':
-                    printf("Changes to task_array\n");
                     free_task_arr(task_array);
                     task_array = NULL;
                     init_task_array(&task_array, tasks_path);
                     break;
+
+                case 'w':
+                    printf("Time until next task execution: %ds\n", timeout/1000);
+                    break;
+
                 default:
                     fprintf(stderr, "Unknown command from status pipe: %c (0x%02x)\n", buff, (unsigned char)buff);
                     break;               

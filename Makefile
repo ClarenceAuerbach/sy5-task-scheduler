@@ -61,5 +61,19 @@ distclean:
 	rm -f erraid
 	rm -f tadmor
 
+reset:
+	@pkill -x erraid || true
+	rm -r /tmp/clarence/erraid/tasks/
+	mkdir /tmp/clarence/erraid/tasks/
+	./erraid
+	./tadmor -c echo test1
+	./tadmor -c echo test2
+	./tadmor -c echo test3
+	./tadmor -c echo test4
+	./tadmor -l
+
+tree: 
+	tree /tmp/clarence/erraid/
+
 kill:
 	@pkill -x erraid || true

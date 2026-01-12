@@ -47,6 +47,9 @@ typedef struct {
     time_t *next_times;
 } task_array_t;
 
+
+int find_task_index(task_array_t *tasks, uint64_t taskid) ;
+
 void print_task(task_t task);
 
 int extract_all(task_array_t *task_arr, string_t *dir_path);

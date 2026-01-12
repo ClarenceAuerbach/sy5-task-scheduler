@@ -16,6 +16,7 @@
 #define OP_STDOUT          U16('S','O')
 #define OP_STDERR          U16('S','E')
 #define OP_TERMINATE       U16('T','M')
+#define OP_MESSAGE         U16('M','S')
 
 // Codes de réponses
 #define ANS_OK             U16('O','K')

@@ -14,6 +14,16 @@
 #include "erraid_util.h"
 #include "tube_util.h"
 
+
+int find_task_index(task_array_t *tasks, uint64_t taskid) {
+    for (int i = 0; i < tasks->length; i++) {
+        if (tasks->tasks[i]->id == taskid) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 int extract_cmd(command_t *dest_cmd, string_t *dir_path) {
     memset(dest_cmd, 0, sizeof(*dest_cmd));
 
@@ -453,60 +463,68 @@ int create_simple_task(string_t *tasks_path, uint64_t taskid, uint64_t minutes, 
     }
     char ch = '\0';
     appendn(argv, &ch, 1);
-    printf("Wrote %s in argv\n", argv->data);
+    
     free_str(task_dir_path);
     close(argv_fd);
     return 0;
 }
 
+int create_command_rec(command_t *command, string_t *cmd_path) {
+    int base_len = cmd_path->length;
 
-int create_command_rec( command_t * command, string_t * cmd_path){
+    /* ---- type file ---- */
     append(cmd_path, "/type");
-    int type_fd = open(cmd_path->data, O_WRONLY |O_CREAT , 0600 );
-    trunc_str_by(cmd_path, 5);
-    
-    if( !strcmp(command->type,"SI")){
-        if (write(type_fd, "SI", 2) != 2){
+    int type_fd = open(cmd_path->data, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (type_fd < 0) return -1;
+
+    trunc_str_to(cmd_path, base_len);
+
+    if (!strcmp(command->type, "SI")) {
+        if (write(type_fd, "SI", 2) != 2) {
             close(type_fd);
             return -1;
         }
         close(type_fd);
-        buffer_t * argv_buff = init_buf();
 
-        appendn(argv_buff, &command->args.argc, 4);
-        for( int i= 0; i < (int) command->args.argc; i++ ){
-            
-            appendn(argv_buff, command->args.argv->data, command->args.argv->length);
+        buffer_t *argv_buff = init_buf();
+        write32(argv_buff, command->args.argc);
+
+        for (uint32_t i = 0; i < command->args.argc; i++) {
+            write32(argv_buff, command->args.argv[i].length);
+            appendn(argv_buff,
+                    command->args.argv[i].data,
+                    command->args.argv[i].length);
         }
+
         append(cmd_path, "/argv");
-        int argv_fd = open(cmd_path->data, O_WRONLY |O_CREAT , 0600 );
+        int argv_fd = open(cmd_path->data, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        trunc_str_to(cmd_path, base_len);
 
-        if( write_atomic_chunks( argv_fd, argv_buff->data, argv_buff->length) < 0){
-            free_str(cmd_path);
-            free_buf(argv_buff);
-            close(argv_fd);
+        if (argv_fd < 0) return -1;
+
+        write_atomic_chunks(argv_fd, argv_buff->data, argv_buff->length);
+        close(argv_fd);
+        free_buf(argv_buff);
+
+    } else {
+        if (write(type_fd, command->type, 2) != 2) {
+            close(type_fd);
             return -1;
-        }
-    }else {
-        if (write(type_fd, command->type, 2) != 2){
-                close(type_fd);
-                return -1;
         }
         close(type_fd);
 
-        int tmp_length = cmd_path->length;
-        char tmp_i[16];
-        for(int i = 0; i < (int)command->nbcmds ; i++){
-            snprintf(tmp_i, 16, "/%d", i);
-            append(cmd_path, tmp_i);
-            if(mkdir( cmd_path->data, 0700) != 0){
-                perror("Failed mkdir in creating command");
-                return -1;
-            }
-            create_command_rec( &command->cmd[i], cmd_path);
-            trunc_str_to(cmd_path, tmp_length);
+        for (uint32_t i = 0; i < command->nbcmds; i++) {
+            char tmp[16];
+            snprintf(tmp, sizeof(tmp), "/%u", i);
+            append(cmd_path, tmp);
+
+            if (mkdir(cmd_path->data, 0700) != 0) return -1;
+
+            create_command_rec(&command->cmd[i], cmd_path);
+            trunc_str_to(cmd_path, base_len);
         }
     }
+
     return 0;
 }
 
@@ -537,7 +555,7 @@ int create_combine_task(task_array_t * task_array, string_t *task_dir_path, uint
     write64(timing_buf, minutes) ;
     write32(timing_buf, hours) ;
     appendn(timing_buf, &days, 1) ;
-
+    
     if (write(timing_fd, timing_buf->data, timing_buf->length) < 0) {
         perror("write timing file");
         free_buf(timing_buf);
@@ -557,9 +575,8 @@ int create_combine_task(task_array_t * task_array, string_t *task_dir_path, uint
         free_str(task_dir_path);
         return -1;
     }
-    
+
     // Create type file
-    
     append(task_dir_path,  "/type");
     int type_fd = open(task_dir_path->data, O_WRONLY | O_CREAT | O_TRUNC, 0600);
     if (type_fd < 0) {
@@ -596,16 +613,19 @@ int create_combine_task(task_array_t * task_array, string_t *task_dir_path, uint
             free_str(task_dir_path);
             return -1;
         }
-        create_command_rec( task_array->tasks[task_ids[i]]->command, task_dir_path);
+        create_command_rec( task_array->tasks[find_task_index(task_array, task_ids[i])]->command, task_dir_path);
         trunc_str_to(task_dir_path, tmp_length);
     }
 
 
     trunc_str_to(task_dir_path, old_length);
     char tmp_j[65];
+
     for(int j=0 ; j < (int)nb_task; j++){
+
         snprintf(tmp_j, 65,  "/%ld", task_ids[j]);
         append(task_dir_path, tmp_j);
+        
         remove_task_dir(task_dir_path);
         trunc_str_to(task_dir_path, old_length);
     }
