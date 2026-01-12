@@ -1,24 +1,20 @@
 .PHONY: run kill clean test prepare_tests
 
 CC      = gcc
-CFLAGS  = -Wall -Wextra -std=c17 -Iinclude -g
+CFLAGS  = -Wall -Wextra -std=c17 -Iinclude -D_DEFAULT_SOURCE
 
 MAIN_SRCS = $(wildcard src/main/*.c)
 TEST_SRCS = $(wildcard src/test/*.c)
 MAIN_OBJS = $(MAIN_SRCS:src/main/%.c=obj/main/%.o)
 TEST_BINS = $(TEST_SRCS:src/test/%.c=test_bin/%)
 
-all: erraid test
+all: erraid tadmor test
 
 # Won't be permanent, removed once we have tadmor
-run1: erraid
-	./erraid -r ./src/test/data/exemple-arborescence-1/tmp-username-erraid
-run2: erraid
-	./erraid -r ./src/test/data/exemple-arborescence-2/tmp-username-erraid
-run3: erraid
-	./erraid -r ./src/test/data/exemple-arborescence-3/tmp-username-erraid
-run4: erraid
-	./erraid -r ./src/test/data/exemple-arborescence-4/tmp-username-erraid
+
+run: erraid
+	./erraid 
+
 
 test: prepare_tests
 	@echo "\033[1mRunning Tests\033[0m"
@@ -41,11 +37,14 @@ test: prepare_tests
 
 prepare_tests: $(TEST_BINS)
 
-erraid: $(MAIN_OBJS) | test_bin
+erraid: $(filter-out obj/main/tadmor.o, $(MAIN_OBJS))
+	$(CC) $^ -o $@
+
+tadmor: $(filter-out obj/main/erraid.o, $(MAIN_OBJS))
 	$(CC) $^ -o $@
 
 # Linking all main object files to avoid dependency issues
-test_bin/test_%: obj/test/test_%.o $(filter-out obj/main/erraid.o, $(MAIN_OBJS)) | test_bin
+test_bin/test_%: obj/test/test_%.o $(filter-out obj/main/tadmor.o obj/main/erraid.o, $(MAIN_OBJS)) | test_bin
 	$(CC) $^ -o $@
 
 obj/main/%.o: src/main/%.c | obj/main
@@ -59,10 +58,22 @@ obj/test obj/main test_bin:
 
 distclean:
 	rm -rf bin obj
-	rm erraid
+	rm -f erraid
+	rm -f tadmor
 
-kill : 
-	@PID=$$(ps aux | grep './erraid' | awk '{print $$2}'); \
-	if [ -n "$$PID" ]; then \
-		kill $$PID ; \
-	fi
+reset:
+	@pkill -x erraid || true
+	rm -r /tmp/clarence/erraid/tasks/
+	mkdir /tmp/clarence/erraid/tasks/
+	./erraid
+	./tadmor -c echo test1
+	./tadmor -c echo test2
+	./tadmor -c echo test3
+	./tadmor -c echo test4
+	./tadmor -l
+
+tree: 
+	tree /tmp/clarence/erraid/
+
+kill:
+	@pkill -x erraid || true

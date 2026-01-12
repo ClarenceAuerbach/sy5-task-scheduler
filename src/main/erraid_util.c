@@ -1,6 +1,5 @@
-#define _DEFAULT_SOURCE
-
 #include <fcntl.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -67,21 +66,26 @@ void print_string( string_t string){
 
 /* Prints a task_t */
 void print_task(task_t task){
-    printf( "Task ID : %d\n", task.id );
+    printf( "Task ID : %lu\n", task.id );
     printf( "Timing : \n" );
     printBits(8, &(task.timings.minutes));
     printBits(2, &(task.timings.hours));
     printBits(1, &(task.timings.daysofweek));
     printf("Command : \n" );
-    char type[3];
-    memcpy(type, &(task.command->type), 2);
-    type[2] = '\0';
-    printf("  type : %s\n", type);
+    printf("  type : %s\n", task.command->type);
     printf("  nbcmds : %d \n", task.command->nbcmds);
     printf("  argv :\n");
 
     for(int i=0 ; i < (int) task.command->args.argc ; i++){
         print_string((task.command->args.argv)[i]);
+    }
+}
+
+/* Prints list of task ids */
+void print_task_ids(int argc, task_t * task[]){
+    printf( "\nTask IDS : \n");
+    for(int i=0 ; i < argc ; i++){
+        printf( "   %lu\n", task[i]->id );
     }
 }
 
@@ -96,6 +100,7 @@ int count_dir_size(char *dir_path , int only_count_dir) {
     DIR *dir = opendir(dir_path);
     if (dir == NULL) {
         perror("cannot open dir path");
+        printf("%s\n", dir_path);
         return -1;
     }
 
@@ -121,4 +126,105 @@ int count_dir_size(char *dir_path , int only_count_dir) {
 
     closedir(dir);
     return i;
+}
+
+
+
+
+
+
+
+
+
+
+
+/* ??? */
+static void animated_duck_close(int space, int n)
+{
+    for(int i = 0; i <= n; i++)
+        printf("\n");
+
+    for(int i = 0; i <= space; i++)
+    {
+        printf(" ");
+    }
+    printf("   _\n");
+
+    for(int i = 0; i <= space; i++)
+    {
+        printf(" ");
+    }
+    printf("__\(\\)>\n");
+
+    for(int i = 0; i <= space; i++)
+    {
+        printf(" ");
+    }
+    printf("\\___)\n");
+}
+
+static void animated_duck_open(int space, int n)
+{
+    for(int i = 0; i <= n; i++)
+        printf("\n");
+    for(int i = 0; i <= space; i++)
+    {
+        printf(" ");
+    }
+    printf("   _\n");
+
+    for(int i = 0; i <= space; i++)
+    {
+        printf(" ");
+    }
+    printf("__\(\\)<\n");
+
+    for(int i = 0; i <= space; i++)
+    {
+        printf(" ");
+    }
+    printf("\\___)\n");
+}
+
+void animation_open_close(int space)
+{
+    int frames = 0;
+    int start = 0;
+    int k = 0;
+    int interval = 12;
+
+    while(k < 4)
+    {
+        for( int i = start; i < frames + interval; i++)
+        {
+            animated_duck_close(i,space);
+            usleep(80000);
+            system("clear");
+        }
+
+        frames = frames + interval;
+
+        for(int i = frames; i < frames + interval; i++)
+        {
+            animated_duck_open(i,space);
+            usleep(80000);
+            system("clear");
+        }
+
+        frames = frames + interval;
+        start = frames;
+
+        k++;
+    }
+
+}
+
+void erraid_move(){
+    int i = 0;
+    int j;
+    for(j = 0; j < 5; j++)
+    {
+        animation_open_close(i);
+        i = i + 3;
+    }
 }
