@@ -82,9 +82,16 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
             read32(req_fd, &nb_task);
 
             uint64_t task_ids[nb_task];
+            int err = 0;
             for(int i =0; i< (int)nb_task; i++){
                 read64(req_fd, (task_ids+i));
+                if(find_task_index(task_array, task_ids[i]) == -1){
+                    write16(reply, ANS_ERROR);
+                    write16(reply, ERR_NOT_FOUND);
+                    err = 1;
+                }
             }
+            if(err) break;
 
             if(create_combine_task(task_array, tasks_path, taskid, minutes, hours, days, nb_task, task_ids, type) != 0) {
                 write16(reply, ANS_ERROR);
@@ -105,6 +112,7 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
             }
             
             write16(reply, ANS_OK);
+            write64(reply, taskid); 
 
             break;
         }
@@ -175,6 +183,7 @@ int handle_request(int req_fd, string_t* rep_pipe_path, task_array_t **task_arra
             }
             
             write16(reply, ANS_OK);
+            write64(reply, taskid); 
 
             break;
         }

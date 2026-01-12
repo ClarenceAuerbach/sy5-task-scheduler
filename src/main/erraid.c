@@ -64,6 +64,40 @@ int tube_timeout(int tube_fd, int timeout) {
     return ret;
 }
 
+/* Execute a simple command WITHOUT forking - for use in pipelines and other contexts
+ * where we're already in a forked child process */
+int exec_simple_command_direct(command_t *com, int fd_out, int fd_err) {
+    if (strcmp(com->type, "SI")) return -1; // Not simple
+    
+    /* allocate array of char* pointers */
+    char **argv = malloc((com->args.argc + 1) * sizeof(char *));
+    if (!argv) {
+        perror("malloc");
+        return -1;
+    }
+    
+    for (int i = 0; i < (int)com->args.argc; i++) {
+        argv[i] = com->args.argv[i].data;
+    }
+    argv[com->args.argc] = NULL;
+
+    if (fd_out != STDOUT_FILENO) {
+        dup2(fd_out, STDOUT_FILENO);
+        if (fd_out > STDERR_FILENO) close(fd_out);
+    }
+    if (fd_err != STDERR_FILENO) {
+        dup2(fd_err, STDERR_FILENO);
+        if (fd_err > STDERR_FILENO) close(fd_err);
+    }
+
+    execvp(argv[0], argv);
+    
+    /* Only reached if execvp fails */
+    perror("execvp failed");
+    free(argv);
+    return 127;
+}
+
 /* Execute a simple command of type SI */
 int exec_simple_command(command_t *com, int fd_out, int fd_err){
     if (strcmp(com->type, "SI")) return -1; // Not simple
@@ -112,33 +146,27 @@ int exec_simple_command(command_t *com, int fd_out, int fd_err){
     }
 }
 
-int exec_command(command_t *com, int fd_out, int fd_err); // Mutually recursive
+int exec_command_internal(command_t *com, int fd_out, int fd_err, int in_pipeline);
 
 /* Executes a sequential command (type SQ) */
-int exec_sequential_command(command_t *com, int fd_out, int fd_err){
+int exec_sequential_command(command_t *com, int fd_out, int fd_err, int in_pipeline) {
     int ret = 0;
-    for (unsigned int i=0; i < com->nbcmds; i++){
-        ret = exec_command(&com->cmd[i], fd_out, fd_err);
+    for (unsigned int i = 0; i < com->nbcmds; i++) {
+        ret = exec_command_internal(&com->cmd[i], fd_out, fd_err, in_pipeline);
     }
     return ret;
 }
 
-/* Executes a conditional command (type IF)
- * If there are 3 or more subcommands, [cmd1, cmd2, cmd3, ...]
- * Executes (if cmd1; then cmd2; else cmd3; fi)
- * Otherwise, executes (if cmd1; then cmd2; fi)
- */
-int exec_conditional_command(command_t *com, int fd_out, int fd_err) {
+/* Executes a conditional command (type IF) */
+int exec_conditional_command(command_t *com, int fd_out, int fd_err, int in_pipeline) {
     int ret = 0;
     int cond;
-    /* conditional => com->nbcmds == 3
-     * cmd = {if, then, else}
-     */
-    cond = exec_command(com->cmd, fd_out, fd_err);
+    
+    cond = exec_command_internal(com->cmd, fd_out, fd_err, in_pipeline);
     if (cond == 0) { // Condition command succeeded
-        ret = exec_command(com->cmd + 1, fd_out, fd_err);
+        ret = exec_command_internal(com->cmd + 1, fd_out, fd_err, in_pipeline);
     } else if (com->nbcmds >= 3) {
-        ret = exec_command(com->cmd + 2, fd_out, fd_err);
+        ret = exec_command_internal(com->cmd + 2, fd_out, fd_err, in_pipeline);
     }
     return ret;
 }
@@ -153,6 +181,7 @@ int exec_pipeline_command(command_t *com, int fd_out, int fd_err) {
     for (int i = 0; i < n - 1; i++) {
         if (pipe(pipes + 2*i) < 0) {
             perror("pipe");
+            return -1;
         }
     }
 
@@ -160,32 +189,41 @@ int exec_pipeline_command(command_t *com, int fd_out, int fd_err) {
         pid_t pid = fork();
         if (pid < 0) {
             perror("fork");
+            for (int j = 0; j < 2*(n-1); j++) {
+                close(pipes[j]);
+            }
+            return -1;
         }
+        
         if (pid == 0) {
             /* Child */
 
-            /* stdin */
+            /* stdin: connect to previous pipe's read end */
             if (i > 0) {
                 dup2(pipes[2*(i-1)], STDIN_FILENO);
             }
 
-            /* stdout */
+            /* stdout: connect to next pipe's write end, or final fd_out */
             if (i < n - 1) {
                 dup2(pipes[2*i + 1], STDOUT_FILENO);
             } else {
                 dup2(fd_out, STDOUT_FILENO);
             }
 
-            /* stderr */
+            /* stderr: always goes to fd_err */
             dup2(fd_err, STDERR_FILENO);
 
-            /* Close all pipe fds */
+            /* Close all pipe fds in child */
             for (int j = 0; j < 2*(n-1); j++) {
                 close(pipes[j]);
             }
+            
+            /* Close original fds if not standard */
+            if (fd_out > STDERR_FILENO) close(fd_out);
+            if (fd_err > STDERR_FILENO) close(fd_err);
 
-            /* Execute command */
-            int ret = exec_command(&com->cmd[i], STDOUT_FILENO, STDERR_FILENO);
+            /* Execute command - we're in a pipeline, so use direct execution */
+            int ret = exec_command_internal(&com->cmd[i], STDOUT_FILENO, STDERR_FILENO, 1);
             _exit(ret);
         }
 
@@ -197,37 +235,57 @@ int exec_pipeline_command(command_t *com, int fd_out, int fd_err) {
         close(pipes[i]);
     }
 
-    /* Wait for children */
+    /* Wait for all children */
     int status;
     int ret = 0;
     for (int i = 0; i < n; i++) {
-        waitpid(pids[i], &status, 0);
-        // Final return value: last child
+        pid_t w;
+        do {
+            w = waitpid(pids[i], &status, 0);
+        } while (w == -1 && errno == EINTR);
+        
+        if (w == -1) {
+            perror("waitpid");
+            ret = -1;
+        }
+        
         if (i == n - 1) {
             if (WIFEXITED(status)) {
                 ret = WEXITSTATUS(status);
+            } else if (WIFSIGNALED(status)) {
+                ret = 128 + WTERMSIG(status);
             } else {
                 ret = 1;
             }
         }
     }
+    
     return ret;
 }
-/* Calls the right exec_type_command */
-int exec_command(command_t *com, int fd_out, int fd_err){
+
+/* Internal function that handles in_pipeline flag */
+int exec_command_internal(command_t *com, int fd_out, int fd_err, int in_pipeline) {
     int ret = 0;
     if (!strcmp(com->type, "SQ")) {
-        ret = exec_sequential_command(com, fd_out, fd_err);
+        ret = exec_sequential_command(com, fd_out, fd_err, in_pipeline);
     } else if (!strcmp(com->type, "SI")) {
-        ret = exec_simple_command(com, fd_out, fd_err);
+        // Use direct execution if in pipeline, fork otherwise
+        if (in_pipeline) {
+            ret = exec_simple_command_direct(com, fd_out, fd_err);
+        } else {
+            ret = exec_simple_command(com, fd_out, fd_err);
+        }
     } else if (!strcmp(com->type, "IF")) {
-        ret = exec_conditional_command(com, fd_out, fd_err);
+        ret = exec_conditional_command(com, fd_out, fd_err, in_pipeline);
     } else if (!strcmp(com->type, "PL")) {
         ret = exec_pipeline_command(com, fd_out, fd_err);
     }
-    // DEBUG
-    // printf("\033[33mCommand type: %s\033[0m\n", com->type);
     return ret;
+}
+
+/* Calls the right exec_type_command - public interface */
+int exec_command(command_t *com, int fd_out, int fd_err) {
+    return exec_command_internal(com, fd_out, fd_err, 0);
 }
 
 /* Calls exec_command and writes time exit code */
@@ -516,19 +574,47 @@ int main(int argc, char *argv[]) {
                 break;
             }
             switch(buff) {
-                case 'q':
+                case 'q':{
                     stop_requested = 1;
                     break;
-                case 'c':
+                }
+                case 'c':{
                     free_task_arr(task_array);
                     task_array = NULL;
                     init_task_array(&task_array, tasks_path);
                     break;
-
-                case 'w':
-                    printf("Time until next task execution: %ds\n", timeout/1000);
+                }
+                case 'w':{
+                
+                    int current_timeout = 0;
+                    time_t now = time(NULL);
+                    time_t min_timing = -1;
+                    int found_task = 0;
+                    string_t * task_list = init_str();
+                    char tmp_id[64];
+                    
+                    // Find the soonest task
+                    for (int i = 0; i < task_array->length; i++) {
+                        time_t t = task_array->next_times[i];
+                        if (t >= 0 && (!found_task || t <= min_timing)) {
+                            if (min_timing != t) trunc_str_to(task_list, 0);
+                            min_timing = t;
+                            snprintf(tmp_id, 64, " %ld", task_array->tasks[i]->id);
+                            append(task_list, tmp_id);
+                            found_task = 1;
+                        }
+                    }
+                    
+                    if (found_task && min_timing > now) {
+                        current_timeout = (min_timing - now);
+                        printf("Time until next task execution: %ds\nTasks ids: %s\n", current_timeout, task_list->data);
+                    } else if (found_task) {
+                        printf("A task should be executed now (or is overdue)\n");
+                    } else {
+                        printf("No tasks scheduled\n");
+                    }
                     break;
-
+                }
                 default:
                     fprintf(stderr, "Unknown command from status pipe: %c (0x%02x)\n", buff, (unsigned char)buff);
                     break;               

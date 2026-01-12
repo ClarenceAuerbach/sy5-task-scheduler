@@ -403,7 +403,14 @@ int handle_create(int req_fd, string_t *rep_pipe_path, string_t* minutes, string
         close(rep_fd);
         return 1;
     }
-    printf("Task created successfully\n");
+
+    uint64_t taskid;
+    if (read64(rep_fd, &taskid) != 0) {
+        close(rep_fd);
+        return -1;
+    }
+    
+    printf("Task %lu created successfully\n", taskid);
     close(rep_fd);
     return 0;
 }
@@ -465,14 +472,25 @@ int handle_combine(int req_fd, string_t *rep_pipe_path, string_t* minutes, strin
             close(rep_fd);
             return -1;
         }
+        if(errcode == ERR_CANNOT_CREATE){
+            fprintf(stderr, "Cannot create task\n");
+        }else if( errcode == ERR_NOT_FOUND){
+            fprintf(stderr, "One or more of the given tasks doesn't exist\n");
+        }
         close(rep_fd);
         return 1;
     }
 
-    printf("Combined task created successfully\n");
+    uint64_t taskid;
+    if (read64(rep_fd, &taskid) != 0) {
+        close(rep_fd);
+        return -1;
+    }
+    
+    printf("Combined task %lu created successfully\n", taskid);
     close(rep_fd);
 
-    return -1;
+    return 0;
 }
 
 /* Send TERMINATE request */
@@ -719,7 +737,7 @@ int main(int argc, char **argv) {
                 }
             }
             if (nb_task == 0) {
-                fprintf(stderr, "Error : -c requires one task id.\n");
+                fprintf(stderr, "Error : -%c requires one task id.\n", type);
                 return 1;
             }if( type == 'i' && (nb_task != 3 && nb_task != 2)){
                 fprintf(stderr, "Error : -i should take exactly 2 or 3 task ids.\n");
@@ -752,6 +770,6 @@ error :
     free_str(PIPES_DIRECTORY);
     fprintf(stderr, "Error: Unknown option '-%c'\n", optopt);
     fprintf(stderr,
-        "Usage: tadmor [-p PATH] [-l|-q|-r TASKID|-x TASKID|-o TASKID|-e TASKID]\n");
+        "./tadmor [-P PATH] [-l|-q|-r TASKID|-x TASKID|-o TASKID|-e TASKID|-c|-p|-s|-i [-m minutes][-h hours][-d days] cmd arg1...argn]\n");
     return 1;
 }

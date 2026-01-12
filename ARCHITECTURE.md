@@ -12,6 +12,7 @@ Le processus crée un fils qui gère les requêtes de **tadmor**, et dispose d'u
 
 - le message `"q"` indique au père de terminer (en libérant la mémoire),
 - le message `"c"` indique au père qu'il y a eu un changement dans l'arborescence et qu'il faut mettre à jour `task_array`, en reparcourant l'arborescence.
+- le message `"w"` demande au père le temps avant la prochaine éxecution et les tâches comprisent dans cette éxecution.
 
 La double-flèche entre **erraid_req** et **tadmor** représente la communication par tube nommé, `req_pipe` et `rep_pipe`.
 
