@@ -1,3 +1,0 @@
-- RIALLAND Louis - 22309585 - Louis Rialland
-- AUERBACH Clarence - 22306986 - AUERBACH clarence
-- JOULAIN Niels - 22303507 - JOULAIN Niels
