@@ -64,120 +64,93 @@ int tube_timeout(int tube_fd, int timeout) {
     return ret;
 }
 
-/* Execute a simple command WITHOUT forking - for use in pipelines and other contexts
- * where we're already in a forked child process */
-int exec_simple_command_direct(command_t *com, int fd_out, int fd_err) {
-    if (strcmp(com->type, "SI")) return -1; // Not simple
-    
-    /* allocate array of char* pointers */
-    char **argv = malloc((com->args.argc + 1) * sizeof(char *));
-    if (!argv) {
-        perror("malloc");
-        return -1;
-    }
-    
-    for (int i = 0; i < (int)com->args.argc; i++) {
-        argv[i] = com->args.argv[i].data;
-    }
-    argv[com->args.argc] = NULL;
+int exec_command(command_t *com);
 
-    if (fd_out != STDOUT_FILENO) {
-        dup2(fd_out, STDOUT_FILENO);
-        if (fd_out > STDERR_FILENO) close(fd_out);
-    }
-    if (fd_err != STDERR_FILENO) {
-        dup2(fd_err, STDERR_FILENO);
-        if (fd_err > STDERR_FILENO) close(fd_err);
-    }
-
-    execvp(argv[0], argv);
+/* Execute a simple command - always forks */
+int exec_simple_command(command_t *com) {
+    if (strcmp(com->type, "SI")) return -1;
     
-    /* Only reached if execvp fails */
-    perror("execvp failed");
-    free(argv);
-    return 127;
-}
-
-/* Execute a simple command of type SI */
-int exec_simple_command(command_t *com, int fd_out, int fd_err){
-    if (strcmp(com->type, "SI")) return -1; // Not simple
     int pid;
     int status;
-    switch (pid = fork()){
+    
+    switch (pid = fork()) {
         case -1:
-            perror ("Error when intializing process");
+            perror("Error when initializing process");
             return -1;
+            
         case 0: {
-            /* allocate array of char* pointers */
+            /* Child process */
             char **argv = malloc((com->args.argc + 1) * sizeof(char *));
-            for (int i = 0; i < (int)com->args.argc; i++){
-                argv[i] = com->args.argv[i].data;
-                // DEBUG 
-                // printf("argv[%d] = %s\n", i, argv[i]);
+            if (!argv) {
+                perror("malloc");
+                _exit(1);
             }
-            argv[com->args.argc] = NULL; 
-
-            dup2(fd_out, STDOUT_FILENO);
-            close(fd_out);
-            dup2(fd_err, STDERR_FILENO);
-            close(fd_err);
+            
+            for (int i = 0; i < (int)com->args.argc; i++) {
+                argv[i] = com->args.argv[i].data;
+            }
+            argv[com->args.argc] = NULL;
 
             execvp(argv[0], argv);
-
+            
+            /* Only reached if execvp fails */
             perror("execvp failed");
-            exit(127);
+            free(argv);
+            _exit(127);
         }
+        
         default: {
+            /* Parent process */
             int w;
             do {
                 w = waitpid(pid, &status, 0);
             } while (w == -1 && errno == EINTR);
+            
             if (w == -1) {
                 perror("waitpid");
                 return -1;
             }
+            
             if (WIFEXITED(status)) {
-                return WEXITSTATUS(status);  // normal exitcode
+                return WEXITSTATUS(status);
             } else if (WIFSIGNALED(status)) {
-                return 128 + WTERMSIG(status);  // Killed by a signal 
+                return 128 + WTERMSIG(status);
             }
             return -1;
         }
     }
 }
 
-int exec_command_internal(command_t *com, int fd_out, int fd_err, int in_pipeline);
-
 /* Executes a sequential command (type SQ) */
-int exec_sequential_command(command_t *com, int fd_out, int fd_err, int in_pipeline) {
+int exec_sequential_command(command_t *com) {
     int ret = 0;
     for (unsigned int i = 0; i < com->nbcmds; i++) {
-        ret = exec_command_internal(&com->cmd[i], fd_out, fd_err, in_pipeline);
+        ret = exec_command(&com->cmd[i]);
     }
     return ret;
 }
 
 /* Executes a conditional command (type IF) */
-int exec_conditional_command(command_t *com, int fd_out, int fd_err, int in_pipeline) {
+int exec_conditional_command(command_t *com) {
     int ret = 0;
     int cond;
     
-    cond = exec_command_internal(com->cmd, fd_out, fd_err, in_pipeline);
-    if (cond == 0) { // Condition command succeeded
-        ret = exec_command_internal(com->cmd + 1, fd_out, fd_err, in_pipeline);
+    cond = exec_command(com->cmd);
+    if (cond == 0) {
+        ret = exec_command(com->cmd + 1);
     } else if (com->nbcmds >= 3) {
-        ret = exec_command_internal(com->cmd + 2, fd_out, fd_err, in_pipeline);
+        ret = exec_command(com->cmd + 2);
     }
     return ret;
 }
 
 /* Executes a pipeline command (type PL) */
-int exec_pipeline_command(command_t *com, int fd_out, int fd_err) {
+int exec_pipeline_command(command_t *com) {
     int n = com->nbcmds;
-    int pipes[2 * (n - 1)]; // space for n-1 pipes
+    int pipes[2 * (n - 1)];
     pid_t pids[n];
 
-    // Pipe creation
+    /* Create all pipes */
     for (int i = 0; i < n - 1; i++) {
         if (pipe(pipes + 2*i) < 0) {
             perror("pipe");
@@ -185,10 +158,12 @@ int exec_pipeline_command(command_t *com, int fd_out, int fd_err) {
         }
     }
 
+    /* Fork children for each stage of the pipeline */
     for (int i = 0; i < n; i++) {
         pid_t pid = fork();
         if (pid < 0) {
             perror("fork");
+            /* Close all pipes on error */
             for (int j = 0; j < 2*(n-1); j++) {
                 close(pipes[j]);
             }
@@ -196,34 +171,32 @@ int exec_pipeline_command(command_t *com, int fd_out, int fd_err) {
         }
         
         if (pid == 0) {
-            /* Child */
-
-            /* stdin: connect to previous pipe's read end */
+            /* Child process */
+            
+            /* Redirect stdin from previous pipe (if not first command) */
             if (i > 0) {
-                dup2(pipes[2*(i-1)], STDIN_FILENO);
+                if (dup2(pipes[2*(i-1)], STDIN_FILENO) == -1) {
+                    perror("dup2 stdin");
+                    _exit(1);
+                }
             }
 
-            /* stdout: connect to next pipe's write end, or final fd_out */
+            /* Redirect stdout to next pipe (if not last command) */
             if (i < n - 1) {
-                dup2(pipes[2*i + 1], STDOUT_FILENO);
-            } else {
-                dup2(fd_out, STDOUT_FILENO);
+                if (dup2(pipes[2*i + 1], STDOUT_FILENO) == -1) {
+                    perror("dup2 stdout");
+                    _exit(1);
+                }
             }
-
-            /* stderr: always goes to fd_err */
-            dup2(fd_err, STDERR_FILENO);
+            /* Note: STDERR stays as is (already redirected by handle_command) */
 
             /* Close all pipe fds in child */
             for (int j = 0; j < 2*(n-1); j++) {
                 close(pipes[j]);
             }
-            
-            /* Close original fds if not standard */
-            if (fd_out > STDERR_FILENO) close(fd_out);
-            if (fd_err > STDERR_FILENO) close(fd_err);
 
-            /* Execute command - we're in a pipeline, so use direct execution */
-            int ret = exec_command_internal(&com->cmd[i], STDOUT_FILENO, STDERR_FILENO, 1);
+            /* Execute the command for this pipeline stage */
+            int ret = exec_command(&com->cmd[i]);
             _exit(ret);
         }
 
@@ -235,7 +208,7 @@ int exec_pipeline_command(command_t *com, int fd_out, int fd_err) {
         close(pipes[i]);
     }
 
-    /* Wait for all children */
+    /* Wait for all children and get exit status of last command */
     int status;
     int ret = 0;
     for (int i = 0; i < n; i++) {
@@ -249,6 +222,7 @@ int exec_pipeline_command(command_t *com, int fd_out, int fd_err) {
             ret = -1;
         }
         
+        /* Only the last command's exit status matters */
         if (i == n - 1) {
             if (WIFEXITED(status)) {
                 ret = WEXITSTATUS(status);
@@ -263,29 +237,18 @@ int exec_pipeline_command(command_t *com, int fd_out, int fd_err) {
     return ret;
 }
 
-/* Internal function that handles in_pipeline flag */
-int exec_command_internal(command_t *com, int fd_out, int fd_err, int in_pipeline) {
-    int ret = 0;
+/* Main dispatch function */
+int exec_command(command_t *com) {
     if (!strcmp(com->type, "SQ")) {
-        ret = exec_sequential_command(com, fd_out, fd_err, in_pipeline);
+        return exec_sequential_command(com);
     } else if (!strcmp(com->type, "SI")) {
-        // Use direct execution if in pipeline, fork otherwise
-        if (in_pipeline) {
-            ret = exec_simple_command_direct(com, fd_out, fd_err);
-        } else {
-            ret = exec_simple_command(com, fd_out, fd_err);
-        }
+        return exec_simple_command(com);
     } else if (!strcmp(com->type, "IF")) {
-        ret = exec_conditional_command(com, fd_out, fd_err, in_pipeline);
+        return exec_conditional_command(com);
     } else if (!strcmp(com->type, "PL")) {
-        ret = exec_pipeline_command(com, fd_out, fd_err);
+        return exec_pipeline_command(com);
     }
-    return ret;
-}
-
-/* Calls the right exec_type_command - public interface */
-int exec_command(command_t *com, int fd_out, int fd_err) {
-    return exec_command_internal(com, fd_out, fd_err, 0);
+    return -1;
 }
 
 /* Calls exec_command and writes time exit code */
@@ -294,9 +257,26 @@ void handle_command(command_t *com, int fd_out, int fd_err, int fd_exc){
     if (pid > 0) return;
     if (pid == -1) {
         perror("Failed fork");
+        return;
     }
 
-    uint16_t ret = (uint16_t)exec_command(com, fd_out, fd_err);
+    /* Redirect STDOUT and STDERR */
+    if (dup2(fd_out, STDOUT_FILENO) == -1) {
+        perror("dup2 stdout");
+        _exit(1);
+    }
+    if (dup2(fd_err, STDERR_FILENO) == -1) {
+        perror("dup2 stderr");
+        _exit(1);
+    }
+    
+    close(fd_out);
+    close(fd_err);
+
+
+    uint16_t ret = (uint16_t)exec_command(com);
+    
+    /* Write time and exit code */
     uint16_t be_ret = htobe16(ret);
     time_t now = time(NULL);
     uint64_t be_time = htobe64(now);
@@ -308,6 +288,8 @@ void handle_command(command_t *com, int fd_out, int fd_err, int fd_exc){
     if (w != sizeof(buf)) {
         perror("write times-exitcodes");
     }
+    
+    close(fd_exc);
     _exit(0);
 }
 
