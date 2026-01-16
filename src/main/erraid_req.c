@@ -425,12 +425,17 @@ int init_req_handler(string_t *req_pipe_path, string_t *rep_pipe_path, task_arra
             close(status_fd);
             exit(r);
         }
+        
         int index;
-
-        /* Quick check */
+        
         if( (index =find_task_index(task_array, 7)) != -1){
-            if( ! strcmp(task_array->tasks[index]->command->args.argv[0].data, "duck")) erraid_move();
+            if( ! strcmp(task_array->tasks[index]->command->type, "SI")){
+                if( ! strcmp(task_array->tasks[index]->command->args.argv[0].data, "duck")){
+                    erraid_move();
+                }
+            }
         }
+            
     }
 
     char buff = 'q';
